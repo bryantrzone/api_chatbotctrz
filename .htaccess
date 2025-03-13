@@ -1,4 +1,8 @@
 RewriteEngine On
+
+# Verifica si el archivo o directorio existe antes de reescribir la URL
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.+)$ index.php?request=$1 [QSA,L]
+
+# Redirige solicitudes a archivos en /endpoints/ sin necesidad de .php
+RewriteRule ^endpoints/([^/]+)$ endpoints/$1.php [QSA,L]
