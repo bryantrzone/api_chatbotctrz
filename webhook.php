@@ -1,8 +1,9 @@
 <?php
 // CONFIGURACIÓN DEL WEBHOOK
+$PHONE_NUMBERID=498027520054701;
 $VERIFY_TOKEN = "falco_verificacion";
 $ACCESS_TOKEN = "EAASBWzT6HkkBOweokDwUjyqjwrp1QuBCUY9h1EvGpsdmnv2WZBvzoPz8LCVvTO1GcD2j6MnfO57F1KZBZC4vYsLvw7o4ZBhIHMCypZBHlZB6IoVG9XdUY6VE2ZCEh0aLWV8Uunjhb3BEqZBmr3AZBHTUeZAFP5hN7hjBy8ZCZAezZAmdV3wd620Yturm4YZAb8oZCycZCUUZA70qAk9g89wikgYmZBmBYz8ks9b38pOOhtOiZAHZBSN1P4qzpyZCoE7QZD";
-$API_URL = "https://graph.facebook.com/v17.0/YOUR_PHONE_NUMBER_ID/messages";
+$API_URL = "https://graph.facebook.com/v22.0/".$PHONE_NUMBERID."/messages";
 
 // **1️⃣ Verificación del Webhook en Meta**
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['hub_verify_token'])) {
@@ -37,7 +38,12 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 // **4️⃣ Función para enviar respuestas a WhatsApp**
 function enviarMensajeTexto($telefono, $mensaje) {
     global $API_URL, $ACCESS_TOKEN;
-    
+
+    // **Corrección automática del número de México**
+    if (preg_match('/^521(\d{10})$/', $telefono, $matches)) {
+        $telefono = "52" . $matches[1]; // Elimina el "1" después del código de país
+    }
+
     $payload = [
         "messaging_product" => "whatsapp",
         "recipient_type" => "individual",
@@ -62,4 +68,5 @@ function enviarMensajeTexto($telefono, $mensaje) {
     // **Guardar logs de la respuesta de WhatsApp**
     file_put_contents("whatsapp_log.txt", "Respuesta de WhatsApp: " . $response . "\n", FILE_APPEND);
 }
+
 ?>
