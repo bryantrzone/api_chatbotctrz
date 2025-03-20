@@ -72,7 +72,7 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     // **5️⃣ Si el usuario selecciona un área laboral, preguntar la ciudad**
     elseif (in_array($message_text, ["ventas", "almacen", "contabilidad", "reparto"])) {
         // Guardamos el área en su historial para la siguiente interacción
-        guardarHistorialUsuario($phone_number, ["estado" => "seleccion_ciudad", "area" => $message_text]);
+        // guardarHistorialUsuario($phone_number, ["estado" => "seleccion_ciudad", "area" => $message_text]);
 
         // Enviar mensaje preguntando la ciudad
         enviarMensajeTexto($phone_number, "📍 *Mencione la ciudad donde se encuentra (Puebla, CDMX, Tijuana, etc):*");
@@ -153,16 +153,6 @@ function corregirFormatoTelefono($telefono) {
         return "52" . $matches[1]; // Elimina el "1"
     }
     return $telefono;
-}
-
-// **🔟 Función para guardar historial del usuario**
-function guardarHistorialUsuario($telefono, $datos) {
-    file_put_contents("usuarios/$telefono.json", json_encode($datos));
-}
-
-// **🔟 Función para cargar historial del usuario**
-function cargarHistorialUsuario($telefono) {
-    return file_exists("usuarios/$telefono.json") ? json_decode(file_get_contents("usuarios/$telefono.json"), true) : [];
 }
 
 ?>
