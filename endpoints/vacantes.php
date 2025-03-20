@@ -1,37 +1,37 @@
 <?php
 header("Content-Type: application/json");
-require '../config.php'; // Asegúrate de que la ruta sea correcta
+require '../config.php'; // Conexión a la BD
 
-// Verificar si el método es GET
+// Verificar si el método es GET o POST
 if ($_SERVER["REQUEST_METHOD"] == "GET") {
-    // Obtener los parámetros de la URL
-    $area = isset($_GET['Area']) ? urldecode($_GET['Area']) : null;
-    $sucursal = isset($_GET['Sucursal']) ? urldecode($_GET['Sucursal']) : null;
-
-    if (!$area && !$sucursal) {
-        echo json_encode(["mensaje_vacantes" => "⚠️ Debes especificar un área o sucursal para ver las vacantes disponibles."]);
-        exit;
+    if (isset($_GET['Area']) || isset($_GET['Sucursal'])) {
+        getVacantesEnFormatoWhatsApp($_GET['Area'] ?? null, $_GET['Sucursal'] ?? null);
+    } elseif (isset($_GET['id_vacante'])) {
+        validarDisponibilidad($_GET['id_vacante']);
+    } else {
+        echo json_encode(["mensaje" => "⚠️ Debes especificar un filtro o ID de vacante."]);
     }
-
-    getVacantesPorFiltros($area, $sucursal);
+} elseif ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $data = json_decode(file_get_contents("php://input"), true);
+    if (isset($data['id_vacante'], $data['nombre'], $data['email'], $data['telefono'])) {
+        enviarDatosAlReclutador($data);
+    } else {
+        echo json_encode(["mensaje" => "❌ Datos incompletos."]);
+    }
 } else {
-    echo json_encode(["mensaje_vacantes" => "❌ Método no permitido."]);
-    http_response_code(405);
+    echo json_encode(["mensaje" => "❌ Método no permitido."]);
 }
 
-// Función para obtener vacantes filtradas y devolver mensaje formateado
-function getVacantesPorFiltros($area, $sucursal) {
+// Función para obtener vacantes y devolverlas en formato WhatsApp
+function getVacantesEnFormatoWhatsApp($area, $sucursal) {
     global $pdo;
-
-    // Construir la consulta dinámicamente
-    $query = "SELECT * FROM vacantes WHERE status = 'activo'";
+    
+    $query = "SELECT id, nombre, descripcion, area, sucursal, horario FROM vacantes WHERE status = 'activo'";
     $params = [];
-
     if ($area) {
         $query .= " AND area = ?";
         $params[] = $area;
     }
-
     if ($sucursal) {
         $query .= " AND sucursal = ?";
         $params[] = $sucursal;
@@ -41,33 +41,91 @@ function getVacantesPorFiltros($area, $sucursal) {
     $stmt->execute($params);
     $vacantes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Si no hay vacantes, enviar un mensaje informativo
     if (count($vacantes) == 0) {
-        echo json_encode(["mensaje_vacantes" => "⚠️ No hay vacantes disponibles en $sucursal para el área de $area en este momento."]);
+        echo json_encode(["mensaje" => "⚠️ No hay vacantes disponibles en este momento."]);
         exit;
     }
 
-    // Generar mensaje dinámico con un máximo de 5 vacantes
-    $mensaje = "📢 *Vacantes disponibles en $sucursal ($area):*\n\n";
-
-    $contador = 1;
+    // Construcción de botones para WhatsApp
+    $opciones = [];
     foreach ($vacantes as $vacante) {
-        $mensaje .= "🔹 *" . $vacante['nombre'] . "*\n";
-        $mensaje .= "📍 *Sucursal:* " . $vacante['sucursal'] . "\n";
-        $mensaje .= "📝 *Descripción:* " . $vacante['descripcion'] . "\n";
-        $mensaje .= "⏰ *Horario:* " . $vacante['horario'] . "\n\n";
-        
-        if ($contador >= 5) {
-            break; // Solo mostrar las primeras 5 vacantes
-        }
-        $contador++;
+        $opciones[] = [
+            "id" => "vacante_".$vacante['id'],
+            "title" => $vacante['nombre'],
+            "description" => $vacante['sucursal']." - ".$vacante['horario']
+        ];
     }
 
-    // Agregar enlace para más vacantes si hay más de 5
-    if (count($vacantes) > 5) {
-        $mensaje .= "🔗 *Ver más vacantes aquí:* [https://halconet.com.mx/empleo](https://halconet.com.mx/empleo)\n";
+    // Formato JSON compatible con WhatsApp Interactive Messages
+    $respuestaWhatsApp = [
+        "type" => "interactive",
+        "interactive" => [
+            "type" => "list",
+            "header" => [
+                "type" => "text",
+                "text" => "Vacantes Disponibles"
+            ],
+            "body" => [
+                "text" => "Selecciona la vacante en la que estás interesado:"
+            ],
+            "footer" => [
+                "text" => "Powered by Halconet"
+            ],
+            "action" => [
+                "button" => "Ver vacantes",
+                "sections" => [
+                    [
+                        "title" => "Lista de Vacantes",
+                        "rows" => $opciones
+                    ]
+                ]
+            ]
+        ]
+    ];
+
+    echo json_encode($respuestaWhatsApp);
+}
+
+// Función para validar si la vacante sigue disponible
+function validarDisponibilidad($id_vacante) {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT * FROM vacantes WHERE id = ? AND status = 'activo'");
+    $stmt->execute([$id_vacante]);
+    $vacante = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($vacante) {
+        echo json_encode(["mensaje" => "✅ La vacante *{$vacante['nombre']}* aún está disponible. Envíame tus datos para postularte."]);
+    } else {
+        echo json_encode(["mensaje" => "⚠️ Esta vacante ya no está disponible."]);
+    }
+}
+
+// Función para enviar los datos al reclutador
+function enviarDatosAlReclutador($data) {
+    global $pdo;
+
+    // Obtener correo del reclutador
+    $stmt = $pdo->prepare("SELECT email_reclutador FROM vacantes WHERE id = ?");
+    $stmt->execute([$data['id_vacante']]);
+    $vacante = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$vacante) {
+        echo json_encode(["mensaje" => "❌ No se encontró la vacante."]);
+        return;
     }
 
-    echo json_encode(["mensaje_vacantes" => $mensaje]);
+    $email_reclutador = $vacante['email_reclutador'];
+
+    // Enviar correo
+    $asunto = "Nueva postulación para la vacante #{$data['id_vacante']}";
+    $mensaje = "Hola,\n\nUn candidato se ha postulado para la vacante #{$data['id_vacante']}.\n\n".
+               "👤 Nombre: {$data['nombre']}\n".
+               "📧 Email: {$data['email']}\n".
+               "📞 Teléfono: {$data['telefono']}\n\n".
+               "Saludos,\nSistema de Reclutamiento.";
+
+    mail($email_reclutador, $asunto, $mensaje);
+
+    echo json_encode(["mensaje" => "✅ ¡Postulación enviada! Pronto el reclutador se pondrá en contacto contigo."]);
 }
 ?>
