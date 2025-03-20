@@ -55,7 +55,7 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
             ]
         );
     }
-    
+
     // **4️⃣ Si el usuario selecciona "Bolsa de Trabajo", responde con áreas laborales**
     elseif ($message_text === "bolsa_trabajo") {
         enviarMensajeInteractivo($phone_number, 
@@ -67,6 +67,15 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
                 ["id" => "reparto", "title" => "Reparto"]
             ]
         );
+    }
+
+    // **5️⃣ Si el usuario selecciona un área laboral, preguntar la ciudad**
+    elseif (in_array($message_text, ["ventas", "almacen", "contabilidad", "reparto"])) {
+        // Guardamos el área en su historial para la siguiente interacción
+        guardarHistorialUsuario($phone_number, ["estado" => "seleccion_ciudad", "area" => $message_text]);
+
+        // Enviar mensaje preguntando la ciudad
+        enviarMensajeTexto($phone_number, "📍 *Mencione la ciudad donde se encuentra (Puebla, CDMX, Tijuana, etc):*");
     }
 
 }
@@ -102,6 +111,23 @@ function enviarMensajeInteractivo($telefono, $mensaje, $opciones = []) {
     enviarAPI($payload);
 }
 
+// **7️⃣ Función para enviar mensaje de texto normal**
+function enviarMensajeTexto($telefono, $mensaje) {
+    global $API_URL, $ACCESS_TOKEN;
+
+    $telefono = corregirFormatoTelefono($telefono);
+
+    $payload = [
+        "messaging_product" => "whatsapp",
+        "recipient_type" => "individual",
+        "to" => $telefono,
+        "type" => "text",
+        "text" => ["body" => $mensaje]
+    ];
+
+    enviarAPI($payload);
+}
+
 // **5️⃣ Función para enviar la solicitud a la API de WhatsApp**
 function enviarAPI($payload) {
     global $API_URL, $ACCESS_TOKEN;
@@ -127,6 +153,16 @@ function corregirFormatoTelefono($telefono) {
         return "52" . $matches[1]; // Elimina el "1"
     }
     return $telefono;
+}
+
+// **🔟 Función para guardar historial del usuario**
+function guardarHistorialUsuario($telefono, $datos) {
+    file_put_contents("usuarios/$telefono.json", json_encode($datos));
+}
+
+// **🔟 Función para cargar historial del usuario**
+function cargarHistorialUsuario($telefono) {
+    return file_exists("usuarios/$telefono.json") ? json_decode(file_get_contents("usuarios/$telefono.json"), true) : [];
 }
 
 ?>
