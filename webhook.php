@@ -69,6 +69,17 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         );
     }
 
+    elseif (in_array($message_text, ["ventas", "almacen", "contabilidad", "reparto"])) {
+        file_put_contents("whatsapp_log.txt", "Área laboral seleccionada: $message_text por $phone_number\n", FILE_APPEND);
+    
+        // Guardamos el área en su historial para la siguiente interacción
+        guardarHistorialUsuario($phone_number, ["estado" => "seleccion_ciudad", "area" => $message_text]);
+    
+        // Enviar mensaje preguntando la ciudad
+        enviarMensajeTexto($phone_number, "📍 *Mencione la ciudad donde se encuentra (Puebla, CDMX, Tijuana, etc):*");
+    }
+    
+
 }
 
 // **4️⃣ Función para enviar respuestas interactivas a WhatsApp**
@@ -102,6 +113,25 @@ function enviarMensajeInteractivo($telefono, $mensaje, $opciones = []) {
     enviarAPI($payload);
 }
 
+function enviarMensajeTexto($telefono, $mensaje) {
+    global $API_URL, $ACCESS_TOKEN;
+
+    // $telefono = corregirFormatoTelefono($telefono);
+
+    file_put_contents("whatsapp_log.txt", "Enviando mensaje a $telefono: $mensaje\n", FILE_APPEND);
+
+    $payload = [
+        "messaging_product" => "whatsapp",
+        "recipient_type" => "individual",
+        "to" => $telefono,
+        "type" => "text",
+        "text" => ["body" => $mensaje]
+    ];
+
+    enviarAPI($payload);
+}
+
+
 
 // **5️⃣ Función para enviar la solicitud a la API de WhatsApp**
 function enviarAPI($payload) {
@@ -129,5 +159,11 @@ function corregirFormatoTelefono($telefono) {
     }
     return $telefono;
 }
+
+function guardarHistorialUsuario($telefono, $datos) {
+    file_put_contents("usuarios/$telefono.json", json_encode($datos));
+    file_put_contents("whatsapp_log.txt", "Guardando historial para $telefono: " . json_encode($datos) . "\n", FILE_APPEND);
+}
+
 
 ?>
