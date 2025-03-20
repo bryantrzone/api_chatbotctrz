@@ -115,8 +115,6 @@ function enviarMensajeInteractivo($telefono, $mensaje, $opciones = []) {
 function enviarMensajeTexto($telefono, $mensaje) {
     global $API_URL, $ACCESS_TOKEN;
 
-    $telefono = corregirFormatoTelefono($telefono);
-
     $payload = [
         "messaging_product" => "whatsapp",
         "recipient_type" => "individual",
