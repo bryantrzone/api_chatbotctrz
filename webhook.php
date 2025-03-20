@@ -2,7 +2,7 @@
 // CONFIGURACIÓN DEL WEBHOOK DE WHATSAPP BUSINESS API
 
 $VERIFY_TOKEN = "falco_verificacion"; // Debe coincidir con el ingresado en Meta
-$ACCESS_TOKEN = "EAASBWzT6HkkBOy4WCMXnBPKbHeC4Th9hBRaLk3vZBiwxBZCSNB00rVyGnUtASKc9ZAuWGbiBpquenPSPMZABKi1TRxw6RYUmis5N6LccUL3xx7UQsZByggb2sZCa2YWg6MmZBp3bqhq7yxNHSVZAt3DagSWB3j6ZBGf7OnMl3Qi51BczSpofULH7KZA7Qbllmr0dWYkx2X6tFyyPQm58YElkkyDUF35cW8ZB7pmZA5RwETAfH1HjAccaNFQh"; // Generado en Meta Developers
+$ACCESS_TOKEN = "EAASBWzT6HkkBO2Vds4Iq2B9J2x3sMbexKVWbc6Oxz9ZCn0YZChOo7heFZBDqMWQZB3qPEMEXYrcraZCJSxbkhEuhtrdJ6koHQsuEiCmXHHU3H77jVyefcjiTZCEwMnPDAAj33Dxep8xGuaGT0kXJCtwxxZCuwo9AurdpQxCvzQofqrZAanxRqilcGCSI7NiMgBATBuVI42Q4maWhfQRWyWFsgGnPuhvkrxL1RuY25ri2hsNXSYRdXhMZD"; // Generado en Meta Developers
 $API_URL = "https://graph.facebook.com/v17.0/YOUR_PHONE_NUMBER_ID/messages";
 
 // 1️⃣ **Verificar el Webhook en WhatsApp**
