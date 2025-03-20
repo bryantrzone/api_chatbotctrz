@@ -69,15 +69,6 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         );
     }
 
-    // **5️⃣ Si el usuario selecciona un área laboral, preguntar la ciudad**
-    elseif (in_array($message_text, ["ventas", "almacen", "contabilidad", "reparto"])) {
-        // Guardamos el área en su historial para la siguiente interacción
-        // guardarHistorialUsuario($phone_number, ["estado" => "seleccion_ciudad", "area" => $message_text]);
-
-        // Enviar mensaje preguntando la ciudad
-        enviarMensajeTexto($phone_number, "📍 *Mencione la ciudad donde se encuentra (Puebla, CDMX, Tijuana, etc):*");
-    }
-
 }
 
 // **4️⃣ Función para enviar respuestas interactivas a WhatsApp**
@@ -111,20 +102,6 @@ function enviarMensajeInteractivo($telefono, $mensaje, $opciones = []) {
     enviarAPI($payload);
 }
 
-// **7️⃣ Función para enviar mensaje de texto normal**
-function enviarMensajeTexto($telefono, $mensaje) {
-    global $API_URL, $ACCESS_TOKEN;
-
-    $payload = [
-        "messaging_product" => "whatsapp",
-        "recipient_type" => "individual",
-        "to" => $telefono,
-        "type" => "text",
-        "text" => ["body" => $mensaje]
-    ];
-
-    enviarAPI($payload);
-}
 
 // **5️⃣ Función para enviar la solicitud a la API de WhatsApp**
 function enviarAPI($payload) {
