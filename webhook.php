@@ -60,23 +60,39 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 
     // **4️⃣ Si el usuario selecciona "Bolsa de Trabajo", responde con áreas laborales**
     elseif ($message_text === "bolsa_trabajo") {
-        // Guardamos estado actual en historial (opcional si usas flujo por etapas)
-        guardarHistorialUsuario($phone_number, ["estado" => "seleccion_sucursal"]);
-    
+        enviarMensajeInteractivo($phone_number, 
+            "📢 *Actualmente contamos con diversas oportunidades laborales.*\n\n_¿En qué área le gustaría trabajar?_",
+            [
+                ["id" => "ventas", "title" => "Ventas"],
+                ["id" => "almacen", "title" => "Almacén"],
+                ["id" => "contabilidad", "title" => "Contabilidad"],
+                ["id" => "reparto", "title" => "Reparto"]
+            ]
+        );
+    }
+
+    // **5️⃣ Si el usuario selecciona un área laboral, ahora mostrar sucursales**
+    elseif (in_array($message_text, ["ventas", "almacen", "contabilidad", "reparto"])) {
+        file_put_contents("whatsapp_log.txt", "Área laboral seleccionada: $message_text por $phone_number\n", FILE_APPEND);
+
+        // Guardamos el área en el historial del usuario
+        guardarHistorialUsuario($phone_number, ["estado" => "seleccion_sucursal", "area" => $message_text]);
+
+        // Obtener sucursales disponibles desde la base de datos
         $opciones = obtenerListaSucursales();
-    
+
         if (count($opciones) > 0) {
             enviarMensajeInteractivo($phone_number,
-                "🏢 *Estas son las sucursales con vacantes disponibles.*\n\nPor favor, selecciona la sucursal en la que te gustaría postularte:",
+                "🏢 *Estas son las sucursales con vacantes disponibles para $message_text.*\n\nPor favor, selecciona la sucursal en la que te gustaría postularte:",
                 $opciones
             );
         } else {
             enviarMensajeTexto($phone_number, "⚠️ No hay sucursales disponibles en este momento.");
         }
     }
-    
 
-    // Verificar si el usuario seleccionó una sucursal
+
+    // **6️⃣ Si el usuario selecciona una sucursal, pedir su nombre completo**
     elseif (strpos($message_text, "sucursal_") !== false) {
         $sucursal_id = str_replace("sucursal_", "", $message_text);
 
@@ -97,7 +113,6 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
             enviarMensajeTexto($phone_number, "⚠️ La sucursal seleccionada no es válida. Inténtalo nuevamente.");
         }
     }
-
     
 
 }
