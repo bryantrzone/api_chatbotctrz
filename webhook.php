@@ -93,26 +93,26 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 
 
     // **6️⃣ Si el usuario selecciona una sucursal, pedir su nombre completo**
-    elseif (strpos($message_text, "sucursal_") !== false) {
-        $sucursal_id = str_replace("sucursal_", "", $message_text);
+    // elseif (strpos($message_text, "sucursal_") !== false) {
+    //     $sucursal_id = str_replace("sucursal_", "", $message_text);
 
-        // Verificamos que la sucursal exista en la base de datos
-        $stmt = $pdo->prepare("SELECT nombre FROM sucursales WHERE clave = ?");
-        $stmt->execute([$sucursal_id]);
-        $sucursal = $stmt->fetch(PDO::FETCH_ASSOC);
+    //     // Verificamos que la sucursal exista en la base de datos
+    //     $stmt = $pdo->prepare("SELECT nombre FROM sucursales WHERE clave = ?");
+    //     $stmt->execute([$sucursal_id]);
+    //     $sucursal = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($sucursal) {
-            file_put_contents("whatsapp_log.txt", "Sucursal seleccionada: {$sucursal['nombre']} por $phone_number\n", FILE_APPEND);
+    //     if ($sucursal) {
+    //         file_put_contents("whatsapp_log.txt", "Sucursal seleccionada: {$sucursal['nombre']} por $phone_number\n", FILE_APPEND);
 
-            // Guardamos la sucursal en el historial del usuario
-            guardarHistorialUsuario($phone_number, ["estado" => "solicitar_nombre", "sucursal" => $sucursal_id]);
+    //         // Guardamos la sucursal en el historial del usuario
+    //         guardarHistorialUsuario($phone_number, ["estado" => "solicitar_nombre", "sucursal" => $sucursal_id]);
 
-            // Pedimos el nombre completo del usuario
-            enviarMensajeTexto($phone_number, "✍️ *Por favor, escribe tu nombre completo para continuar con el registro:*");
-        } else {
-            enviarMensajeTexto($phone_number, "⚠️ La sucursal seleccionada no es válida. Inténtalo nuevamente.");
-        }
-    }
+    //         // Pedimos el nombre completo del usuario
+    //         enviarMensajeTexto($phone_number, "✍️ *Por favor, escribe tu nombre completo para continuar con el registro:*");
+    //     } else {
+    //         enviarMensajeTexto($phone_number, "⚠️ La sucursal seleccionada no es válida. Inténtalo nuevamente.");
+    //     }
+    // }
     
 
 }
@@ -213,8 +213,20 @@ function obtenerListaSucursales() {
         ];
     }
 
-    return $opciones;
+    // Dividir en secciones de máximo 10 opciones
+    $secciones = [];
+    $chunks = array_chunk($opciones, 10); // Agrupar en bloques de 10
+
+    foreach ($chunks as $index => $chunk) {
+        $secciones[] = [
+            "title" => "Sucursales Disponibles " . ($index + 1),
+            "rows" => $chunk
+        ];
+    }
+
+    return $secciones;
 }
+
 
 
 
