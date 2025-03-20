@@ -1,8 +1,11 @@
 <?php
-// CONFIGURACIÓN DEL WEBHOOK DE WHATSAPP BUSINESS API
 
+file_put_contents("whatsapp_log.txt", file_get_contents("php://input") . "\n", FILE_APPEND);
+
+
+// CONFIGURACIÓN DEL WEBHOOK DE WHATSAPP BUSINESS API
 $VERIFY_TOKEN = "falco_verificacion"; // Debe coincidir con el ingresado en Meta
-$ACCESS_TOKEN = "EAASBWzT6HkkBO2Vds4Iq2B9J2x3sMbexKVWbc6Oxz9ZCn0YZChOo7heFZBDqMWQZB3qPEMEXYrcraZCJSxbkhEuhtrdJ6koHQsuEiCmXHHU3H77jVyefcjiTZCEwMnPDAAj33Dxep8xGuaGT0kXJCtwxxZCuwo9AurdpQxCvzQofqrZAanxRqilcGCSI7NiMgBATBuVI42Q4maWhfQRWyWFsgGnPuhvkrxL1RuY25ri2hsNXSYRdXhMZD"; // Generado en Meta Developers
+$ACCESS_TOKEN = "EAASBWzT6HkkBOZBuPvqRtx6P5t05G6oZCoguExR0DmhQgq5zaJH5eIa2Q95fknBJRYBj1QYxUJmD2RfBhvrr5hbZBTirWk4ffRce8CO1WHzX6ZAp9rr6ROoCj5ePX0WLoyRnBdYHBaarbrALnuavXDcSPHEYN2iKMMBmeHGaI27k3dVRILulrGg5Jzznmwj4DQaNjeHsY7PMx63YOWadHr3KdzGkXPKGVyljZAyZBysTrhC3o0ChoZD"; // Generado en Meta Developers
 $API_URL = "https://graph.facebook.com/v17.0/YOUR_PHONE_NUMBER_ID/messages";
 
 // 1️⃣ **Verificar el Webhook en WhatsApp**
