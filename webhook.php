@@ -1,5 +1,7 @@
 <?php
 
+require 'config.php'; 
+
 // CONFIGURACIÓN DEL WEBHOOK
 $PHONE_NUMBERID=498027520054701;
 $VERIFY_TOKEN = "falco_verificacion";
@@ -58,26 +60,44 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 
     // **4️⃣ Si el usuario selecciona "Bolsa de Trabajo", responde con áreas laborales**
     elseif ($message_text === "bolsa_trabajo") {
-        enviarMensajeInteractivo($phone_number, 
-            "📢 *Actualmente contamos con diversas oportunidades laborales.*\n\n_¿En qué área le gustaría trabajar?_",
-            [
-                ["id" => "ventas", "title" => "Ventas"],
-                ["id" => "almacen", "title" => "Almacén"],
-                ["id" => "contabilidad", "title" => "Contabilidad"],
-                ["id" => "reparto", "title" => "Reparto"]
-            ]
-        );
+        // Guardamos estado actual en historial (opcional si usas flujo por etapas)
+        guardarHistorialUsuario($phone_number, ["estado" => "seleccion_sucursal"]);
+    
+        $opciones = obtenerListaSucursales();
+    
+        if (count($opciones) > 0) {
+            enviarMensajeInteractivo($phone_number,
+                "🏢 *Estas son las sucursales con vacantes disponibles.*\n\nPor favor, selecciona la sucursal en la que te gustaría postularte:",
+                $opciones
+            );
+        } else {
+            enviarMensajeTexto($phone_number, "⚠️ No hay sucursales disponibles en este momento.");
+        }
+    }
+    
+
+    // Verificar si el usuario seleccionó una sucursal
+    elseif (strpos($message_text, "sucursal_") !== false) {
+        $sucursal_id = str_replace("sucursal_", "", $message_text);
+
+        // Verificamos que la sucursal exista en la base de datos
+        $stmt = $pdo->prepare("SELECT nombre FROM sucursales WHERE clave = ?");
+        $stmt->execute([$sucursal_id]);
+        $sucursal = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($sucursal) {
+            file_put_contents("whatsapp_log.txt", "Sucursal seleccionada: {$sucursal['nombre']} por $phone_number\n", FILE_APPEND);
+
+            // Guardamos la sucursal en el historial del usuario
+            guardarHistorialUsuario($phone_number, ["estado" => "solicitar_nombre", "sucursal" => $sucursal_id]);
+
+            // Pedimos el nombre completo del usuario
+            enviarMensajeTexto($phone_number, "✍️ *Por favor, escribe tu nombre completo para continuar con el registro:*");
+        } else {
+            enviarMensajeTexto($phone_number, "⚠️ La sucursal seleccionada no es válida. Inténtalo nuevamente.");
+        }
     }
 
-    elseif (in_array($message_text, ["ventas", "almacen", "contabilidad", "reparto"])) {
-        file_put_contents("whatsapp_log.txt", "Área laboral seleccionada: $message_text por $phone_number\n", FILE_APPEND);
-    
-        // Guardamos el área en su historial para la siguiente interacción
-        guardarHistorialUsuario($phone_number, ["estado" => "seleccion_ciudad", "area" => $message_text]);
-    
-        // Enviar mensaje preguntando la ciudad
-        enviarMensajeTexto($phone_number, "📍 *Mencione la ciudad donde se encuentra (Puebla, CDMX, Tijuana, etc):*");
-    }
     
 
 }
@@ -131,8 +151,6 @@ function enviarMensajeTexto($telefono, $mensaje) {
     enviarAPI($payload);
 }
 
-
-
 // **5️⃣ Función para enviar la solicitud a la API de WhatsApp**
 function enviarAPI($payload) {
     global $API_URL, $ACCESS_TOKEN;
@@ -164,6 +182,25 @@ function guardarHistorialUsuario($telefono, $datos) {
     file_put_contents("usuarios/$telefono.json", json_encode($datos));
     file_put_contents("whatsapp_log.txt", "Guardando historial para $telefono: " . json_encode($datos) . "\n", FILE_APPEND);
 }
+
+function obtenerListaSucursales() {
+    global $pdo;
+
+    $stmt = $pdo->prepare("SELECT clave, nombre FROM sucursales WHERE status = 1 ORDER BY nombre ASC");
+    $stmt->execute();
+    $sucursales = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $opciones = [];
+    foreach ($sucursales as $sucursal) {
+        $opciones[] = [
+            "id" => "sucursal_" . $sucursal['clave'],
+            "title" => $sucursal['nombre']
+        ];
+    }
+
+    return $opciones;
+}
+
 
 
 ?>
