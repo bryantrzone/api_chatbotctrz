@@ -27,7 +27,16 @@ file_put_contents("whatsapp_log.txt", json_encode($input, JSON_PRETTY_PRINT) . "
 if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     $message_data = $input['entry'][0]['changes'][0]['value']['messages'][0];
     $phone_number = corregirFormatoTelefono($message_data['from']); // Número del usuario
-    $message_text = strtolower(trim($message_data['text']['body'] ?? ''));
+    // $message_text = strtolower(trim($message_data['text']['body'] ?? ''));
+
+    $message_text = "";
+    
+    // **Detectar si el mensaje es un texto o una respuesta interactiva**
+    if (isset($message_data['text'])) {
+        $message_text = strtolower(trim($message_data['text']['body']));
+    } elseif (isset($message_data['interactive']['type']) && $message_data['interactive']['type'] === "list_reply") {
+        $message_text = strtolower(trim($message_data['interactive']['list_reply']['id'])); // Aquí obtenemos la ID de la opción seleccionada
+    }
 
 
 
@@ -46,9 +55,20 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
             ]
         );
     }
+    
+    // **4️⃣ Si el usuario selecciona "Bolsa de Trabajo", responde con áreas laborales**
+    elseif ($message_text === "bolsa_trabajo") {
+        enviarMensajeInteractivo($phone_number, 
+            "📢 *Actualmente contamos con diversas oportunidades laborales.*\n\n_¿En qué área le gustaría trabajar?_",
+            [
+                ["id" => "ventas", "title" => "Ventas"],
+                ["id" => "almacen", "title" => "Almacén"],
+                ["id" => "contabilidad", "title" => "Contabilidad"],
+                ["id" => "reparto", "title" => "Reparto"]
+            ]
+        );
+    }
 
-    // **3️⃣ Responder al usuario**
-    // enviarMensajeTexto($phone_number, "¡Hola! Recibí tu mensaje: *$message_text* 🤖");
 }
 
 // **4️⃣ Función para enviar respuestas interactivas a WhatsApp**
@@ -81,40 +101,6 @@ function enviarMensajeInteractivo($telefono, $mensaje, $opciones = []) {
 
     enviarAPI($payload);
 }
-
-// **4️⃣ Función para enviar respuestas a WhatsApp**
-// function enviarMensajeTexto($telefono, $mensaje) {
-//     global $API_URL, $ACCESS_TOKEN;
-
-//     // **Corrección automática del número de México**
-//     if (preg_match('/^521(\d{10})$/', $telefono, $matches)) {
-//         $telefono = "52" . $matches[1]; // Elimina el "1" después del código de país
-//     }
-
-//     $payload = [
-//         "messaging_product" => "whatsapp",
-//         "recipient_type" => "individual",
-//         "to" => $telefono,
-//         "type" => "text",
-//         "text" => ["body" => $mensaje]
-//     ];
-
-//     // **Guardar logs del mensaje enviado**
-//     file_put_contents("whatsapp_log.txt", "Enviando respuesta a $telefono: $mensaje\n", FILE_APPEND);
-
-//     $context = stream_context_create([
-//         "http" => [
-//             "method" => "POST",
-//             "header" => "Authorization: Bearer $ACCESS_TOKEN\r\nContent-Type: application/json",
-//             "content" => json_encode($payload)
-//         ]
-//     ]);
-
-//     $response = file_get_contents($API_URL, false, $context);
-
-//     // **Guardar logs de la respuesta de WhatsApp**
-//     file_put_contents("whatsapp_log.txt", "Respuesta de WhatsApp: " . $response . "\n", FILE_APPEND);
-// }
 
 // **5️⃣ Función para enviar la solicitud a la API de WhatsApp**
 function enviarAPI($payload) {
