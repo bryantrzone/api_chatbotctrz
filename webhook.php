@@ -26,7 +26,7 @@ file_put_contents("whatsapp_log.txt", json_encode($input, JSON_PRETTY_PRINT) . "
 // **Verificar que el mensaje es válido**
 if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     $message_data = $input['entry'][0]['changes'][0]['value']['messages'][0];
-    $phone_number = corregirFormatoTelefono($message['from']); // Número del usuario
+    $phone_number = corregirFormatoTelefono($message_data['from']); // Número del usuario
     $message_text = strtolower(trim($message_data['text']['body'] ?? ''));
 
 
