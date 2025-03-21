@@ -2,11 +2,11 @@
 
 require 'config.php'; 
 
-// CONFIGURACIÓN DEL WEBHOOK
-$PHONE_NUMBERID=498027520054701;
-$VERIFY_TOKEN = "falco_verificacion";
-$ACCESS_TOKEN = "EAASBWzT6HkkBO2EEKsCULIAGCavkPRR8ueVH7GaDnuXZBRdxYl9pyuW92EFDhIqmXLRHpNejdOZBe7CKpLAdZCD4xx5cx9oA7oZCmNgLa9q1gtKPMbYALZAKON7K35ehC5V70OjPwR3ryYmCW7KouPPz5DYiER2DAicEvUfhZCHxpavDY6PqKsOEYrBMZCG9tZBkbZAAy6c8OxPNOhrHrG94sC7SxBPKcaJlnPZCC2vLZB5VTjBK4hrS9cZD";
-$API_URL = "https://graph.facebook.com/v22.0/".$PHONE_NUMBERID."/messages";
+// Asignación dinámica
+$PHONE_NUMBERID = $config['PHONE_NUMBERID'];
+$VERIFY_TOKEN   = $config['VERIFY_TOKEN'];
+$ACCESS_TOKEN   = $config['ACCESS_TOKEN'];
+$API_URL        = "https://graph.facebook.com/v17.0/$PHONE_NUMBERID/messages";
 
 // **1️⃣ Verificación del Webhook en Meta**
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['hub_verify_token'])) {
@@ -31,15 +31,39 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     $phone_number = corregirFormatoTelefono($message_data['from']); // Número del usuario
     // $message_text = strtolower(trim($message_data['text']['body'] ?? ''));
 
+   // Variables iniciales
     $message_text = "";
-    
-    // **Detectar si el mensaje es un texto o una respuesta interactiva**
+    $mensaje_original = "";
+    $tipo_mensaje = "texto";
+
+    // Mensaje de texto normal
     if (isset($message_data['text'])) {
-        $message_text = strtolower(trim($message_data['text']['body']));
-    } elseif (isset($message_data['interactive']['type']) && $message_data['interactive']['type'] === "list_reply") {
-        $message_text = strtolower(trim($message_data['interactive']['list_reply']['id'])); // Aquí obtenemos la ID de la opción seleccionada
+        $mensaje_original = trim($message_data['text']['body']);
+        $message_text = strtolower($mensaje_original);
+        $tipo_mensaje = "texto";
     }
 
+    // Mensaje tipo lista interactiva
+    elseif (isset($message_data['interactive']['type']) && $message_data['interactive']['type'] === "list_reply") {
+        $message_text = strtolower(trim($message_data['interactive']['list_reply']['id'])); // ID para lógica
+        $mensaje_original = trim($message_data['interactive']['list_reply']['title']); // Lo que vio el usuario
+        $tipo_mensaje = "list_reply";
+    }
+
+    // Guardar en la base de datos si tenemos algo
+    if (!empty($message_text)) {
+        $estado = cargarHistorialUsuario($phone_number)['estado'] ?? null;
+        $nombre_usuario = $input['entry'][0]['changes'][0]['value']['contacts'][0]['profile']['name'] ?? null;
+
+        guardarMensajeChat(
+            $phone_number,
+            $mensaje_original,
+            $tipo_mensaje,
+            null,               // Se llenará la respuesta del bot cuando respondas
+            $estado,
+            $nombre_usuario
+        );
+    }
 
 
     // **Guardar logs del mensaje recibido**
@@ -151,6 +175,10 @@ function enviarMensajeInteractivo($telefono, $mensaje, $opciones = []) {
     ];
 
     enviarAPI($payload);
+
+    // Guardar en base de datos como respuesta del bot
+    $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
+    guardarMensajeChat($telefono, null, 'respuesta_interactiva', $mensaje, $estado);
 }
 
 function enviarMensajeTexto($telefono, $mensaje) {
@@ -169,6 +197,10 @@ function enviarMensajeTexto($telefono, $mensaje) {
     ];
 
     enviarAPI($payload);
+
+    // Guardar la respuesta del bot en la base de datos
+    $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
+    guardarMensajeChat($telefono, null, 'respuesta', $mensaje, $estado);
 }
 
 // **5️⃣ Función para enviar la solicitud a la API de WhatsApp**
@@ -230,6 +262,24 @@ function obtenerListaSucursales() {
     }
 
     return $secciones;
+}
+
+function guardarMensajeChat($telefono, $mensaje, $tipo = 'texto', $respuesta_bot = null, $estado = null, $nombre_usuario = null) {
+    global $pdo;
+
+    $stmt = $pdo->prepare("INSERT INTO whatsapp_mensajes (telefono, nombre_usuario, mensaje, tipo_mensaje, respuesta_del_bot, flujo_estado) 
+                           VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->execute([
+        $telefono,
+        $nombre_usuario,
+        $mensaje,
+        $tipo,
+        $respuesta_bot,
+        $estado
+    ]);
+
+    // Opcional: log
+    file_put_contents("whatsapp_log.txt", "📝 Mensaje guardado: $telefono => $mensaje\n", FILE_APPEND);
 }
 
 

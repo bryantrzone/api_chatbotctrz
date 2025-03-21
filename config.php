@@ -10,4 +10,11 @@ try {
 } catch (PDOException $e) {
     die("Error en la conexión: " . $e->getMessage());
 }
+
+$config = [];
+$stmt = $pdo->query("SELECT nombre_variable, valor FROM whatsapp_config");
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    $config[$row['nombre_variable']] = $row['valor'];
+}
+
 ?>
