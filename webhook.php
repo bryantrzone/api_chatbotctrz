@@ -111,26 +111,46 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         $sucursal = $stmt->fetch(PDO::FETCH_ASSOC);
     
         if ($sucursal) {
+            $sucursal_nombre = $sucursal['nombre'];
+    
+            // Guardar historial
             $historial = cargarHistorialUsuario($phone_number);
             $historial['estado'] = 'seleccion_area';
             $historial['sucursal'] = $clave;
-            $historial['sucursal_nombre'] = $sucursal['nombre'];
+            $historial['sucursal_nombre'] = $sucursal_nombre;
             guardarHistorialUsuario($phone_number, $historial);
     
-            // Mostrar áreas laborales disponibles
-            enviarMensajeInteractivo($phone_number,
-                "📌 *Sucursal seleccionada:* {$sucursal['nombre']}.\n\n¿En qué área te gustaría trabajar?",
-                [
-                    ["id" => "ventas", "title" => "Ventas"],
-                    ["id" => "almacen", "title" => "Almacén"],
-                    ["id" => "contabilidad", "title" => "Contabilidad"],
-                    ["id" => "reparto", "title" => "Reparto"]
-                ]
-            );
+            // Consultar áreas con vacantes activas en esta sucursal
+            $stmt = $pdo->prepare("SELECT DISTINCT area FROM vacantes WHERE sucursal = ? AND status = 'activo'");
+            $stmt->execute([$sucursal_nombre]);
+            $areas = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+            if (count($areas) > 0) {
+                // Armar lista de opciones de área
+                $area_rows = [];
+                foreach ($areas as $area) {
+                    $id = strtolower(preg_replace('/\s+/', '_', $area)); // ejemplo: "Atención Clientes" → "atencion_clientes"
+                    $area_rows[] = ["id" => $id, "title" => $area];
+                }
+    
+                // Mostrar las áreas como lista interactiva
+                enviarMensajeInteractivo($phone_number,
+                    "📌 *Sucursal seleccionada:* $sucursal_nombre\n\n¿En qué área te gustaría trabajar?",
+                    [
+                        [
+                            "title" => "Áreas disponibles",
+                            "rows" => $area_rows
+                        ]
+                    ]
+                );
+            } else {
+                enviarMensajeTexto($phone_number, "⚠️ Actualmente no hay vacantes disponibles en esta sucursal.");
+            }
         } else {
             enviarMensajeTexto($phone_number, "⚠️ La sucursal seleccionada no es válida.");
         }
     }
+    
     
     
 
