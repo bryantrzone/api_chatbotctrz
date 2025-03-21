@@ -84,27 +84,39 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 
     // **6️⃣ Si el usuario responde con una ciudad, buscar la sucursal más cercana**
     elseif ($estado_anterior === "seleccion_ciudad") {
-        $ciudad = ucfirst(trim($message_text));
-
-        // Buscar sucursal por coincidencia parcial
+        // Extraer correctamente la ciudad escrita por el usuario
+        if (isset($message_data['text']['body'])) {
+            $ciudad = ucfirst(trim($message_data['text']['body']));
+        } else {
+            enviarMensajeTexto($phone_number, "⚠️ No pude leer la ciudad que escribiste. Inténtalo de nuevo.");
+            return;
+        }
+    
+        file_put_contents("whatsapp_log.txt", "Usuario escribió la ciudad: $ciudad\n", FILE_APPEND);
+    
+        // Buscar sucursal por coincidencia parcial en la base de datos
         $stmt = $pdo->prepare("SELECT clave, nombre FROM sucursales WHERE nombre LIKE ? AND status = 1 LIMIT 1");
         $stmt->execute(["%" . $ciudad . "%"]);
         $sucursal = $stmt->fetch(PDO::FETCH_ASSOC);
-
+    
         if ($sucursal) {
+            file_put_contents("whatsapp_log.txt", "Sucursal encontrada: " . json_encode($sucursal) . "\n", FILE_APPEND);
+    
             // Guardar en historial
             $historial = cargarHistorialUsuario($phone_number);
             $historial['sucursal'] = $sucursal['clave'];
             $historial['sucursal_nombre'] = $sucursal['nombre'];
             $historial['estado'] = 'solicitar_nombre';
             guardarHistorialUsuario($phone_number, $historial);
-
+    
             // Pedir el nombre completo del usuario
             enviarMensajeTexto($phone_number, "✍️ *Por favor, escribe tu nombre completo para continuar con el registro:*");
         } else {
+            file_put_contents("whatsapp_log.txt", "⚠️ No se encontró una sucursal para la ciudad: $ciudad\n", FILE_APPEND);
             enviarMensajeTexto($phone_number, "⚠️ No encontré ninguna sucursal con ese nombre.\n\nPor favor, intenta escribir otra ciudad o estado:");
         }
     }
+    
 
     
 
