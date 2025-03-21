@@ -71,48 +71,41 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         );
     }
 
-    // **5️⃣ Si el usuario selecciona un área laboral, ahora mostrar sucursales**
+    // **5️⃣ Si el usuario selecciona un área laboral, ahora pedir la ciudad o estado**
     elseif (in_array($message_text, ["ventas", "almacen", "contabilidad", "reparto"])) {
         file_put_contents("whatsapp_log.txt", "Área laboral seleccionada: $message_text por $phone_number\n", FILE_APPEND);
 
         // Guardamos el área en el historial del usuario
-        guardarHistorialUsuario($phone_number, ["estado" => "seleccion_sucursal", "area" => $message_text]);
+        guardarHistorialUsuario($phone_number, ["estado" => "seleccion_ciudad", "area" => $message_text]);
 
-        // Obtener sucursales disponibles desde la base de datos
-        $opciones = obtenerListaSucursales();
+        // Preguntar la ciudad en lugar de mostrar la lista de sucursales
+        enviarMensajeTexto($phone_number, "📍 *¿En qué ciudad o estado te encuentras?*\n\nEscríbelo en un mensaje (Ejemplo: *Puebla*, *CDMX*, *Monterrey*...)");
+    }
 
-        if (count($opciones) > 0) {
-            enviarMensajeInteractivo($phone_number,
-                "🏢 *Estas son las sucursales con vacantes disponibles para $message_text.*\n\nPor favor, selecciona la sucursal en la que te gustaría postularte:",
-                $opciones
-            );
+    // **6️⃣ Si el usuario responde con una ciudad, buscar la sucursal más cercana**
+    elseif ($estado_anterior === "seleccion_ciudad") {
+        $ciudad = ucfirst(trim($message_text));
+
+        // Buscar sucursal por coincidencia parcial
+        $stmt = $pdo->prepare("SELECT clave, nombre FROM sucursales WHERE nombre LIKE ? AND status = 1 LIMIT 1");
+        $stmt->execute(["%" . $ciudad . "%"]);
+        $sucursal = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($sucursal) {
+            // Guardar en historial
+            $historial = cargarHistorialUsuario($phone_number);
+            $historial['sucursal'] = $sucursal['clave'];
+            $historial['sucursal_nombre'] = $sucursal['nombre'];
+            $historial['estado'] = 'solicitar_nombre';
+            guardarHistorialUsuario($phone_number, $historial);
+
+            // Pedir el nombre completo del usuario
+            enviarMensajeTexto($phone_number, "✍️ *Por favor, escribe tu nombre completo para continuar con el registro:*");
         } else {
-            enviarMensajeTexto($phone_number, "⚠️ No hay sucursales disponibles en este momento.");
+            enviarMensajeTexto($phone_number, "⚠️ No encontré ninguna sucursal con ese nombre.\n\nPor favor, intenta escribir otra ciudad o estado:");
         }
     }
 
-
-    // **6️⃣ Si el usuario selecciona una sucursal, pedir su nombre completo**
-    // elseif (strpos($message_text, "sucursal_") !== false) {
-    //     $sucursal_id = str_replace("sucursal_", "", $message_text);
-
-    //     // Verificamos que la sucursal exista en la base de datos
-    //     $stmt = $pdo->prepare("SELECT nombre FROM sucursales WHERE clave = ?");
-    //     $stmt->execute([$sucursal_id]);
-    //     $sucursal = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    //     if ($sucursal) {
-    //         file_put_contents("whatsapp_log.txt", "Sucursal seleccionada: {$sucursal['nombre']} por $phone_number\n", FILE_APPEND);
-
-    //         // Guardamos la sucursal en el historial del usuario
-    //         guardarHistorialUsuario($phone_number, ["estado" => "solicitar_nombre", "sucursal" => $sucursal_id]);
-
-    //         // Pedimos el nombre completo del usuario
-    //         enviarMensajeTexto($phone_number, "✍️ *Por favor, escribe tu nombre completo para continuar con el registro:*");
-    //     } else {
-    //         enviarMensajeTexto($phone_number, "⚠️ La sucursal seleccionada no es válida. Inténtalo nuevamente.");
-    //     }
-    // }
     
 
 }
