@@ -131,10 +131,10 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 }
 
 // **4️⃣ Función para enviar respuestas interactivas a WhatsApp**
-function enviarMensajeInteractivo($telefono, $mensaje, $opciones = []) {
+function enviarMensajeInteractivo($telefono, $mensaje, $secciones = []) {
     global $API_URL, $ACCESS_TOKEN;
 
-    // $telefono = corregirFormatoTelefono($telefono);
+    $telefono = corregirFormatoTelefono($telefono);
 
     $payload = [
         "messaging_product" => "whatsapp",
@@ -148,22 +148,18 @@ function enviarMensajeInteractivo($telefono, $mensaje, $opciones = []) {
             "footer" => ["text" => "Powered by Halconet"],
             "action" => [
                 "button" => "Elegir",
-                "sections" => [
-                    [
-                        "title" => "Opciones de servicio",
-                        "rows" => $opciones
-                    ]
-                ]
+                "sections" => $secciones  // ✅ AQUÍ USAMOS DIRECTAMENTE LAS SECCIONES CORRECTAS
             ]
         ]
     ];
 
     enviarAPI($payload);
 
-    // Guardar en base de datos como respuesta del bot
+    // Guardar mensaje si lo necesitas
     // $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
     // guardarMensajeChat($telefono, null, 'respuesta_interactiva', $mensaje, $estado);
 }
+
 
 function enviarMensajeTexto($telefono, $mensaje) {
     global $API_URL, $ACCESS_TOKEN;
