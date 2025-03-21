@@ -156,48 +156,39 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 
     // Corregido: Usando $estado en lugar de $estado_anterior que no existía
     elseif ($estado === "seleccion_area" || $estado === "mostrar_vacantes") {
-        $area = ucwords(str_replace('_', ' ', strtolower($message_text))); // "ventas" => "Ventas"
+        $area = ucwords(str_replace('_', ' ', strtolower($message_text))); // Convierte 'ventas' en 'Ventas'
         $historial = cargarHistorialUsuario($phone_number);
         $sucursal_nombre = $historial['sucursal_nombre'] ?? null;
-    
+
         if (!$sucursal_nombre) {
-            enviarMensajeTexto($phone_number, "⚠️ Hubo un error al recuperar tu sucursal. Por favor, escribe *Menú principal* para comenzar de nuevo.");
+            enviarMensajeTexto($phone_number, "⚠️ Hubo un error al recuperar tu sucursal. Si quieres comenzar de nuevo, escribe 'Menú principal'.");
             return;
         }
-    
-        // Guardar área en el historial
-        $historial['estado'] = 'esperando_vacante_id';
-        $historial['area'] = $area;
-        guardarHistorialUsuario($phone_number, $historial);
-    
-        // Buscar vacantes activas en esa sucursal y área
+
+        // Guardar el área seleccionada en historial
+        actualizarHistorialUsuario($phone_number, ["estado" => "mostrar_vacantes", "area" => $area]);
+
+        // Consultar vacantes activas en la sucursal y área
         $stmt = $pdo->prepare("SELECT id, nombre, descripcion, horario FROM vacantes WHERE status = 'activo' AND sucursal = ? AND area = ?");
         $stmt->execute([$sucursal_nombre, $area]);
         $vacantes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
         if (count($vacantes) === 0) {
-            enviarMensajeTexto($phone_number, "😕 No se encontraron vacantes activas en el área de *$area* en *$sucursal_nombre*.");
+            enviarMensajeTexto($phone_number, "😕 No se encontraron vacantes activas en *$area* en *$sucursal_nombre*.");
             return;
         }
-    
-        // Construir el mensaje de vacantes
-        $mensaje = "📋 *Vacantes disponibles en $area - $sucursal_nombre:*\n\n";
-        $contador = 1;
-    
+
+        // Enviar cada vacante con botones de acción
         foreach ($vacantes as $v) {
-            $mensaje .= "🔹 *{$contador}. {$v['nombre']}* (ID: {$v['id']})\n";
-            $mensaje .= "📝 _{$v['descripcion']}_\n";
-            $mensaje .= "⏰ *Horario:* {$v['horario']}\n\n";
-            $contador++;
+            enviarMensajeConBotones(
+                $phone_number,
+                "📦 *{$v['nombre']}*\n📍 *Sucursal:* $sucursal_nombre\n📝 *Descripción:* {$v['descripcion']}\n⏰ *Horario:* {$v['horario']}",
+                [
+                    ["id" => "postular_{$v['id']}", "title" => "📩 Postularme"],
+                    ["id" => "detalles_{$v['id']}", "title" => "📄 Ver detalles"]
+                ]
+            );
         }
-    
-        $mensaje .= "🆔 *Responde con el ID de la vacante* que te interesa para continuar tu registro.";
-    
-        // Enviar mensaje
-        enviarMensajeTexto($phone_number, $mensaje);
-    
-        // Guardar mensaje del bot en whatsapp_mensajes
-        guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, 'esperando_vacante_id');
     }
     
     // Agregar manejo para estado esperando_vacante_id
@@ -478,4 +469,33 @@ function obtenerListaSucursales() {
         return [];
     }
 }
+
+function enviarMensajeConBotones($telefono, $mensaje, $botones) {
+    global $API_URL, $ACCESS_TOKEN;
+
+    $payload = [
+        "messaging_product" => "whatsapp",
+        "recipient_type" => "individual",
+        "to" => $telefono,
+        "type" => "interactive",
+        "interactive" => [
+            "type" => "button",
+            "body" => ["text" => $mensaje],
+            "action" => [
+                "buttons" => array_map(function ($btn) {
+                    return [
+                        "type" => "reply",
+                        "reply" => [
+                            "id" => $btn["id"],
+                            "title" => $btn["title"]
+                        ]
+                    ];
+                }, $botones)
+            ]
+        ]
+    ];
+
+    enviarAPI($payload);
+}
+
 ?>
