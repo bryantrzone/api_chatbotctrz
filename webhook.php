@@ -75,11 +75,17 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         enviarMensajeInteractivo($phone_number, 
             "😊 *¡Bienvenido! Soy Falco, tu asistente virtual 🤖.*\n\nEstoy aquí para resolver tus dudas y guiarte en lo que necesites. \n\n*¿Cómo puedo ayudarte hoy?*",
             [
-                ["id" => "bolsa_trabajo", "title" => "Bolsa de Trabajo"],
-                ["id" => "atencion_clientes", "title" => "Atención a clientes"],
-                ["id" => "cotizacion", "title" => "Cotización"]
+                [
+                    "title" => "Opciones de servicio",
+                    "rows" => [
+                        ["id" => "bolsa_trabajo", "title" => "Bolsa de Trabajo"],
+                        ["id" => "atencion_clientes", "title" => "Atención a clientes"],
+                        ["id" => "cotizacion", "title" => "Cotización"]
+                    ]
+                ]
             ]
         );
+
     }
 
     // **4️⃣ Si el usuario selecciona "Bolsa de Trabajo", responde con áreas laborales**
