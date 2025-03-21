@@ -40,15 +40,14 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     if (isset($message_data['text'])) {
         $mensaje_original = trim($message_data['text']['body']);
         $message_text = strtolower($mensaje_original);
-        $tipo_mensaje = "texto";
+        $tipo_mensaje = 'texto';
+    } elseif (isset($message_data['interactive']['type']) && $message_data['interactive']['type'] === "list_reply") {
+        $message_text = strtolower(trim($message_data['interactive']['list_reply']['id']));
+        $mensaje_original = $message_data['interactive']['list_reply']['title'] ?? '';
+        $tipo_mensaje = 'lista';
     }
 
-    // Mensaje tipo lista interactiva
-    elseif (isset($message_data['interactive']['type']) && $message_data['interactive']['type'] === "list_reply") {
-        $message_text = strtolower(trim($message_data['interactive']['list_reply']['id'])); // ID para lógica
-        $mensaje_original = trim($message_data['interactive']['list_reply']['title']); // Lo que vio el usuario
-        $tipo_mensaje = "list_reply";
-    }
+    $estado = cargarHistorialUsuario($phone_number)['estado'] ?? null;
 
     // Guardar en la base de datos si tenemos algo
     if (!empty($message_text)) {
@@ -156,39 +155,33 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         }
     }
 
-    elseif ($estado_anterior === "seleccion_area" && !empty($message_text)) {
-        $area_id = strtolower(trim($message_text)); // ejemplo: ventas
-        $area_nombre = ucwords(str_replace('_', ' ', $area_id)); // ejemplo: ventas → Ventas
-    
-        file_put_contents("whatsapp_log.txt", "🟠 Área seleccionada: $area_nombre\n", FILE_APPEND);
-    
+    elseif ($estado_anterior === "mostrar_vacantes" || $estado_anterior === "seleccion_area") {
+        $area = ucwords(str_replace('_', ' ', strtolower($message_text))); // "ventas" => "Ventas"
         $historial = cargarHistorialUsuario($phone_number);
         $sucursal_nombre = $historial['sucursal_nombre'] ?? null;
     
         if (!$sucursal_nombre) {
-            enviarMensajeTexto($phone_number, "⚠️ Hubo un error al recuperar tu sucursal. Por favor, escribe *Menú principal* para empezar de nuevo.");
+            enviarMensajeTexto($phone_number, "⚠️ Hubo un error al recuperar tu sucursal. Por favor, escribe *Menú principal* para comenzar de nuevo.");
             return;
         }
     
-        // Guardar en historial (estado + área)
-        $historial['estado'] = 'mostrar_vacantes';
-        $historial['area'] = $area_nombre;
+        // Guardar área en el historial
+        $historial['estado'] = 'esperando_vacante_id';
+        $historial['area'] = $area;
         guardarHistorialUsuario($phone_number, $historial);
-    
-        file_put_contents("whatsapp_log.txt", "📌 Buscando vacantes en $area_nombre - $sucursal_nombre\n", FILE_APPEND);
     
         // Buscar vacantes activas en esa sucursal y área
         $stmt = $pdo->prepare("SELECT id, nombre, descripcion, horario FROM vacantes WHERE status = 'activo' AND sucursal = ? AND area = ?");
-        $stmt->execute([$sucursal_nombre, $area_nombre]);
+        $stmt->execute([$sucursal_nombre, $area]);
         $vacantes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
         if (count($vacantes) === 0) {
-            enviarMensajeTexto($phone_number, "😕 No se encontraron vacantes activas en el área de *$area_nombre* en *$sucursal_nombre*.");
+            enviarMensajeTexto($phone_number, "😕 No se encontraron vacantes activas en el área de *$area* en *$sucursal_nombre*.");
             return;
         }
     
-        // Construir mensaje con la lista de vacantes
-        $mensaje = "📋 *Vacantes disponibles en $area_nombre - $sucursal_nombre:*\n\n";
+        // Construir el mensaje de vacantes
+        $mensaje = "📋 *Vacantes disponibles en $area - $sucursal_nombre:*\n\n";
         $contador = 1;
     
         foreach ($vacantes as $v) {
@@ -198,9 +191,13 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
             $contador++;
         }
     
-        $mensaje .= "🆔 *Escribe el ID de la vacante* que te interesa para continuar con tu registro.";
+        $mensaje .= "🆔 *Responde con el ID de la vacante* que te interesa para continuar tu registro.";
     
+        // Enviar mensaje
         enviarMensajeTexto($phone_number, $mensaje);
+    
+        // Guardar mensaje del bot en whatsapp_mensajes
+        guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, 'esperando_vacante_id');
     }
     
     
@@ -255,10 +252,7 @@ function enviarMensajeInteractivo($telefono, $mensaje, $secciones = []) {
 function enviarMensajeTexto($telefono, $mensaje) {
     global $API_URL, $ACCESS_TOKEN;
 
-    // $telefono = corregirFormatoTelefono($telefono);
-
-    file_put_contents("whatsapp_log.txt", "Enviando mensaje a $telefono: $mensaje\n", FILE_APPEND);
-
+    $telefono = corregirFormatoTelefono($telefono);
     $payload = [
         "messaging_product" => "whatsapp",
         "recipient_type" => "individual",
@@ -267,12 +261,25 @@ function enviarMensajeTexto($telefono, $mensaje) {
         "text" => ["body" => $mensaje]
     ];
 
-    enviarAPI($payload);
+    // Guardar en log
+    file_put_contents("whatsapp_log.txt", "🟢 Enviando mensaje a $telefono: $mensaje\n", FILE_APPEND);
 
-    // Guardar la respuesta del bot en la base de datos
-    // $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
-    // guardarMensajeChat($telefono, null, 'respuesta', $mensaje, $estado);
+    $context = stream_context_create([
+        "http" => [
+            "method" => "POST",
+            "header" => "Authorization: Bearer $ACCESS_TOKEN\r\nContent-Type: application/json",
+            "content" => json_encode($payload)
+        ]
+    ]);
+
+    $response = file_get_contents($API_URL, false, $context);
+    file_put_contents("whatsapp_log.txt", "🔁 Respuesta de WhatsApp: " . $response . "\n", FILE_APPEND);
+
+    // Guardar mensaje del bot
+    $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
+    guardarMensajeChat($telefono, null, 'respuesta', $mensaje, $estado);
 }
+
 
 // **5️⃣ Función para enviar la solicitud a la API de WhatsApp**
 function enviarAPI($payload) {
