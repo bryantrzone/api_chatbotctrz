@@ -6,7 +6,7 @@ require 'config.php';
 $PHONE_NUMBERID = $config['PHONE_NUMBERID'];
 $VERIFY_TOKEN   = $config['VERIFY_TOKEN'];
 $ACCESS_TOKEN   = $config['ACCESS_TOKEN'];
-$API_URL        = "https://graph.facebook.com/v17.0/$PHONE_NUMBERID/messages";
+$API_URL        = "https://graph.facebook.com/v22.0/$PHONE_NUMBERID/messages";
 
 // **1️⃣ Verificación del Webhook en Meta**
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['hub_verify_token'])) {
