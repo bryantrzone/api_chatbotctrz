@@ -87,39 +87,8 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         // Guardamos el nuevo estado
         guardarHistorialUsuario($phone_number, ["estado" => "seleccion_sucursal"]);
     
-        // Obtener sucursales con vacantes activas
-        $stmt = $pdo->query("
-            SELECT DISTINCT s.clave, s.nombre
-            FROM sucursales s
-            INNER JOIN vacantes v ON v.sucursal = s.nombre
-            WHERE s.status = 1 AND v.status = 'activo'
-            ORDER BY s.nombre ASC
-        ");
-        $sucursales = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-        if (count($sucursales) === 0) {
-            enviarMensajeTexto($phone_number, "⚠️ No hay vacantes disponibles en este momento.");
-            return;
-        }
-    
-        // Construir lista interactiva en secciones de 10 máximo
-        $rows = [];
-        foreach ($sucursales as $sucursal) {
-            $rows[] = [
-                "id" => "sucursal_" . $sucursal['clave'],
-                "title" => $sucursal['nombre']
-            ];
-        }
-    
-        $chunks = array_chunk($rows, 10);
-        $secciones = [];
-        foreach ($chunks as $i => $chunk) {
-            $secciones[] = [
-                "title" => "Sucursales disponibles " . ($i + 1),
-                "rows" => $chunk
-            ];
-        }
-    
+        $secciones = obtenerListaSucursales();
+
         enviarMensajeInteractivo(
             $phone_number,
             "🏢 *Estas son las sucursales con vacantes activas.*\n\nPor favor, selecciona la sucursal en la que te gustaría trabajar:",
@@ -250,34 +219,6 @@ function guardarHistorialUsuario($telefono, $datos) {
     file_put_contents("whatsapp_log.txt", "Guardando historial para $telefono: " . json_encode($datos) . "\n", FILE_APPEND);
 }
 
-function obtenerListaSucursales() {
-    global $pdo;
-
-    $stmt = $pdo->prepare("SELECT clave, nombre FROM sucursales WHERE status = 1 ORDER BY nombre ASC");
-    $stmt->execute();
-    $sucursales = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $opciones = [];
-    foreach ($sucursales as $sucursal) {
-        $opciones[] = [
-            "id" => "sucursal_" . $sucursal['clave'],
-            "title" => $sucursal['nombre']
-        ];
-    }
-
-    // WhatsApp permite máximo 10 filas por sección
-    $chunks = array_chunk($opciones, 10);
-
-    $secciones = [];
-    foreach ($chunks as $index => $chunk) {
-        $secciones[] = [
-            "title" => "Sucursales disponibles " . ($index + 1),
-            "rows" => $chunk
-        ];
-    }
-
-    return $secciones;
-}
 
 function guardarMensajeChat($telefono, $mensaje, $tipo = 'texto', $respuesta_bot = null, $estado = null, $nombre_usuario = null) {
     global $pdo;
@@ -298,6 +239,33 @@ function guardarMensajeChat($telefono, $mensaje, $tipo = 'texto', $respuesta_bot
     }
 }
 
+function obtenerListaSucursales() {
+    global $pdo;
+
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT s.clave, s.nombre
+        FROM sucursales s
+        INNER JOIN vacantes v ON v.sucursal = s.nombre
+        WHERE s.status = 1 AND v.status = 'activo'
+        ORDER BY s.nombre ASC
+    ");
+    $stmt->execute();
+    $sucursales = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $rows = [];
+    foreach ($sucursales as $sucursal) {
+        $rows[] = [
+            "id" => "sucursal_" . $sucursal['clave'],
+            "title" => $sucursal['nombre']
+        ];
+    }
+
+    // Solo una sección si son menos de 10
+    return [[
+        "title" => "Sucursales disponibles",
+        "rows" => $rows
+    ]];
+}
 
 
 
