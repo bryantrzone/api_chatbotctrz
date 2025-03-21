@@ -52,7 +52,7 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 
     // Guardar en la base de datos si tenemos algo
     if (!empty($message_text)) {
-        $estado = cargarHistorialUsuario($phone_number)['estado'] ?? null;
+        // $estado = cargarHistorialUsuario($phone_number)['estado'] ?? null;
         $nombre_usuario = $input['entry'][0]['changes'][0]['value']['contacts'][0]['profile']['name'] ?? null;
 
         guardarMensajeChat(
@@ -177,8 +177,8 @@ function enviarMensajeInteractivo($telefono, $mensaje, $opciones = []) {
     enviarAPI($payload);
 
     // Guardar en base de datos como respuesta del bot
-    $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
-    guardarMensajeChat($telefono, null, 'respuesta_interactiva', $mensaje, $estado);
+    // $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
+    // guardarMensajeChat($telefono, null, 'respuesta_interactiva', $mensaje, $estado);
 }
 
 function enviarMensajeTexto($telefono, $mensaje) {
@@ -199,8 +199,8 @@ function enviarMensajeTexto($telefono, $mensaje) {
     enviarAPI($payload);
 
     // Guardar la respuesta del bot en la base de datos
-    $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
-    guardarMensajeChat($telefono, null, 'respuesta', $mensaje, $estado);
+    // $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
+    // guardarMensajeChat($telefono, null, 'respuesta', $mensaje, $estado);
 }
 
 // **5️⃣ Función para enviar la solicitud a la API de WhatsApp**
