@@ -213,13 +213,13 @@ function obtenerListaSucursales() {
         ];
     }
 
-    // Dividir en secciones de máximo 10 opciones
-    $secciones = [];
-    $chunks = array_chunk($opciones, 10); // Agrupar en bloques de 10
+    // WhatsApp permite máximo 10 filas por sección
+    $chunks = array_chunk($opciones, 10);
 
+    $secciones = [];
     foreach ($chunks as $index => $chunk) {
         $secciones[] = [
-            "title" => "Sucursales Disponibles " . ($index + 1),
+            "title" => "Sucursales disponibles " . ($index + 1),
             "rows" => $chunk
         ];
     }
