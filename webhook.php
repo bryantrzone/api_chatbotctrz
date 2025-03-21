@@ -156,66 +156,43 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 
     // Reemplaza el bloque actual que muestra las vacantes con este código:
     elseif ($estado === "seleccion_area" || $estado === "mostrar_vacantes") {
-        $area = ucwords(str_replace('_', ' ', strtolower($message_text))); // "ventas" => "Ventas"
+        $area = ucwords(str_replace('_', ' ', strtolower($message_text))); // Ejemplo: ventas → Ventas
         $historial = cargarHistorialUsuario($phone_number);
         $sucursal_nombre = $historial['sucursal_nombre'] ?? null;
-
+    
         if (!$sucursal_nombre) {
-            enviarMensajeTexto($phone_number, "⚠️ Hubo un error al recuperar tu sucursal. Por favor, escribe *Menú principal* para comenzar de nuevo.");
+            enviarMensajeTexto($phone_number, "⚠️ Hubo un error al recuperar tu sucursal. Por favor, si quieres comenzar de nuevo, escribe 'Menú principal'.");
             return;
         }
-
-        // Guardar área en el historial
-        $historial['estado'] = 'esperando_vacante_id';
+    
+        // Guardar el área seleccionada en el historial
+        $historial['estado'] = 'mostrar_vacantes';
         $historial['area'] = $area;
         guardarHistorialUsuario($phone_number, $historial);
-
-        // Buscar vacantes activas en esa sucursal y área
+    
+        // Consultar vacantes activas en la sucursal y área seleccionada
         $stmt = $pdo->prepare("SELECT id, nombre, descripcion, horario FROM vacantes WHERE status = 'activo' AND sucursal = ? AND area = ?");
         $stmt->execute([$sucursal_nombre, $area]);
         $vacantes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
+    
         if (count($vacantes) === 0) {
-            enviarMensajeTexto($phone_number, "😕 No se encontraron vacantes activas en el área de *$area* en *$sucursal_nombre*.");
+            enviarMensajeTexto($phone_number, "😕 No hay vacantes activas en *$area* en *$sucursal_nombre*.");
             return;
         }
-
-        // Mensaje inicial sobre las vacantes disponibles
-        enviarMensajeTexto($phone_number, "📋 *Vacantes disponibles en $area - $sucursal_nombre:*\n\nEstas son las vacantes disponibles. Selecciona la que te interese:");
-        
-        // Enviar cada vacante como un mensaje interactivo individual con botones
-        foreach ($vacantes as $vacante) {
-            $mensaje = "*{$vacante['nombre']}*\n\n";
-            $mensaje .= "📝 _{$vacante['descripcion']}_\n";
-            $mensaje .= "⏰ *Horario:* {$vacante['horario']}";
-            
-            enviarMensajeBotones(
-                $phone_number,
-                $mensaje,
-                [
-                    [
-                        "type" => "reply",
-                        "reply" => [
-                            "id" => "vacante_" . $vacante['id'],
-                            "title" => "✅ Me interesa"
-                        ]
-                    ],
-                    [
-                        "type" => "reply",
-                        "reply" => [
-                            "id" => "ver_otra",
-                            "title" => "Ver otras vacantes"
-                        ]
-                    ]
-                ]
-            );
-            
-            // Pequeña pausa para evitar problemas de límite de velocidad de la API
-            usleep(300000); // 300ms de pausa
+    
+        // Enviar cada vacante en un mensaje separado con botones
+        foreach ($vacantes as $v) {
+            $mensaje = "📌 *Vacante Disponible:*\n\n"
+                     . "📢 *{$v['nombre']}*\n"
+                     . "📍 *Sucursal:* $sucursal_nombre\n"
+                     . "📝 *Descripción:* {$v['descripcion']}\n"
+                     . "⏰ *Horario:* {$v['horario']}\n";
+    
+            enviarMensajeConBotones($phone_number, $mensaje, [
+                ["id" => "seleccionar_{$v['id']}", "title" => "Seleccionar"],
+                ["id" => "ver_detalles_{$v['id']}", "title" => "Ver más detalles"]
+            ]);
         }
-        
-        // Guardamos el mensaje en el historial
-        guardarMensajeChat($phone_number, null, 'respuesta', "Vacantes de $area mostradas con botones interactivos", 'esperando_vacante_id');
     }
 
     // Ahora debemos agregar un bloque para manejar las respuestas de botones
@@ -531,10 +508,11 @@ function obtenerListaSucursales() {
 }
 
 // Ahora necesitamos agregar una nueva función para enviar mensajes con botones:
-function enviarMensajeBotones($telefono, $mensaje, $botones) {
+function enviarMensajeConBotones($telefono, $mensaje, $botones) {
     global $API_URL, $ACCESS_TOKEN;
 
     $telefono = corregirFormatoTelefono($telefono);
+
     $payload = [
         "messaging_product" => "whatsapp",
         "recipient_type" => "individual",
@@ -542,18 +520,23 @@ function enviarMensajeBotones($telefono, $mensaje, $botones) {
         "type" => "interactive",
         "interactive" => [
             "type" => "button",
-            "body" => [
-                "text" => $mensaje
-            ],
-            "footer" => [
-                "text" => "Powered by Halconet"
-            ],
-            "buttons" => $botones
+            "body" => ["text" => $mensaje],
+            "action" => [
+                "buttons" => array_map(function($btn) {
+                    return [
+                        "type" => "reply",
+                        "reply" => [
+                            "id" => $btn["id"],
+                            "title" => $btn["title"]
+                        ]
+                    ];
+                }, $botones)
+            ]
         ]
     ];
 
-    // Guardar en log
-    file_put_contents("whatsapp_log.txt", "🔵 Enviando mensaje con botones a $telefono: " . json_encode($payload, JSON_PRETTY_PRINT) . "\n", FILE_APPEND);
+    // Guardar en logs
+    file_put_contents("whatsapp_log.txt", "🟡 Enviando mensaje con botones:\n" . json_encode($payload, JSON_PRETTY_PRINT) . "\n", FILE_APPEND);
 
     $context = stream_context_create([
         "http" => [
@@ -563,18 +546,11 @@ function enviarMensajeBotones($telefono, $mensaje, $botones) {
         ]
     ]);
 
-    $response = @file_get_contents($API_URL, false, $context);
-    
-    if ($response === false) {
-        $error = error_get_last();
-        file_put_contents("whatsapp_log.txt", "❌ Error al enviar mensaje con botones: " . $error['message'] . "\n", FILE_APPEND);
-    } else {
-        file_put_contents("whatsapp_log.txt", "🔁 Respuesta de WhatsApp: " . $response . "\n", FILE_APPEND);
+    $response = file_get_contents($API_URL, false, $context);
 
-        // Guardar mensaje del bot
-        $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
-        guardarMensajeChat($telefono, null, 'respuesta', $mensaje, $estado);
-    }
+    // Guardar logs de la respuesta
+    file_put_contents("whatsapp_log.txt", "✅ Respuesta de WhatsApp: " . $response . "\n", FILE_APPEND);
 }
+
 
 ?>
