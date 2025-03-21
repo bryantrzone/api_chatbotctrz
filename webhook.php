@@ -155,6 +155,49 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
             enviarMensajeTexto($phone_number, "⚠️ La sucursal seleccionada no es válida.");
         }
     }
+
+    elseif ($estado_anterior === "seleccion_area") {
+        $area = ucwords(str_replace('_', ' ', strtolower($message_text))); // ejemplo: ventas → Ventas
+        $historial = cargarHistorialUsuario($phone_number);
+    
+        $sucursal_nombre = $historial['sucursal_nombre'] ?? null;
+    
+        if (!$sucursal_nombre) {
+            enviarMensajeTexto($phone_number, "⚠️ Hubo un error al recuperar tu sucursal. Por favor, si quieres comenzar de nuevo, solo escribe la palabra 'Menú principal'.");
+            return;
+        }
+    
+        // Guardar el área seleccionada en historial
+        $historial['estado'] = 'mostrar_vacantes';
+        $historial['area'] = $area;
+        guardarHistorialUsuario($phone_number, $historial);
+    
+        // Consultar vacantes activas en esa sucursal y área
+        $stmt = $pdo->prepare("SELECT id, nombre, descripcion, horario FROM vacantes WHERE status = 'activo' AND sucursal = ? AND area = ?");
+        $stmt->execute([$sucursal_nombre, $area]);
+        $vacantes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+        if (count($vacantes) === 0) {
+            enviarMensajeTexto($phone_number, "😕 No se encontraron vacantes activas en el área de *$area* en *$sucursal_nombre*.");
+            return;
+        }
+    
+        // Armar mensaje
+        $mensaje = "📋 *Vacantes disponibles en $area - $sucursal_nombre:*\n\n";
+        $contador = 1;
+    
+        foreach ($vacantes as $v) {
+            $mensaje .= "🔹 *{$contador}. {$v['nombre']}* (ID: {$v['id']})\n";
+            $mensaje .= "📝 _{$v['descripcion']}_\n";
+            $mensaje .= "⏰ *Horario:* {$v['horario']}\n\n";
+            $contador++;
+        }
+    
+        $mensaje .= "🆔 *Responde con el ID de la vacante* que te interesa para continuar tu registro.";
+    
+        enviarMensajeTexto($phone_number, $mensaje);
+    }
+    
     
     
     
