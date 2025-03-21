@@ -156,34 +156,39 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         }
     }
 
-    elseif ($estado_anterior === "seleccion_area") {
-        $area = ucwords(str_replace('_', ' ', strtolower($message_text))); // ejemplo: ventas → Ventas
-        $historial = cargarHistorialUsuario($phone_number);
+    elseif ($estado_anterior === "seleccion_area" && !empty($message_text)) {
+        $area_id = strtolower(trim($message_text)); // ejemplo: ventas
+        $area_nombre = ucwords(str_replace('_', ' ', $area_id)); // ejemplo: ventas → Ventas
     
+        file_put_contents("whatsapp_log.txt", "🟠 Área seleccionada: $area_nombre\n", FILE_APPEND);
+    
+        $historial = cargarHistorialUsuario($phone_number);
         $sucursal_nombre = $historial['sucursal_nombre'] ?? null;
     
         if (!$sucursal_nombre) {
-            enviarMensajeTexto($phone_number, "⚠️ Hubo un error al recuperar tu sucursal. Por favor, si quieres comenzar de nuevo, solo escribe la palabra 'Menú principal'.");
+            enviarMensajeTexto($phone_number, "⚠️ Hubo un error al recuperar tu sucursal. Por favor, escribe *Menú principal* para empezar de nuevo.");
             return;
         }
     
-        // Guardar el área seleccionada en historial
+        // Guardar en historial (estado + área)
         $historial['estado'] = 'mostrar_vacantes';
-        $historial['area'] = $area;
+        $historial['area'] = $area_nombre;
         guardarHistorialUsuario($phone_number, $historial);
     
-        // Consultar vacantes activas en esa sucursal y área
+        file_put_contents("whatsapp_log.txt", "📌 Buscando vacantes en $area_nombre - $sucursal_nombre\n", FILE_APPEND);
+    
+        // Buscar vacantes activas en esa sucursal y área
         $stmt = $pdo->prepare("SELECT id, nombre, descripcion, horario FROM vacantes WHERE status = 'activo' AND sucursal = ? AND area = ?");
-        $stmt->execute([$sucursal_nombre, $area]);
+        $stmt->execute([$sucursal_nombre, $area_nombre]);
         $vacantes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
         if (count($vacantes) === 0) {
-            enviarMensajeTexto($phone_number, "😕 No se encontraron vacantes activas en el área de *$area* en *$sucursal_nombre*.");
+            enviarMensajeTexto($phone_number, "😕 No se encontraron vacantes activas en el área de *$area_nombre* en *$sucursal_nombre*.");
             return;
         }
     
-        // Armar mensaje
-        $mensaje = "📋 *Vacantes disponibles en $area - $sucursal_nombre:*\n\n";
+        // Construir mensaje con la lista de vacantes
+        $mensaje = "📋 *Vacantes disponibles en $area_nombre - $sucursal_nombre:*\n\n";
         $contador = 1;
     
         foreach ($vacantes as $v) {
@@ -193,10 +198,11 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
             $contador++;
         }
     
-        $mensaje .= "🆔 *Responde con el ID de la vacante* que te interesa para continuar tu registro.";
+        $mensaje .= "🆔 *Escribe el ID de la vacante* que te interesa para continuar con tu registro.";
     
         enviarMensajeTexto($phone_number, $mensaje);
     }
+    
     
     
     
