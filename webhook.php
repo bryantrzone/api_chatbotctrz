@@ -119,7 +119,7 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         if ($sucursal) {
             $sucursal_nombre = $sucursal['nombre'];
     
-            // Guardar historial
+            // Guardar historial en MySQL
             $historial = cargarHistorialUsuario($phone_number);
             $historial['estado'] = 'seleccion_area';
             $historial['sucursal'] = $clave;
@@ -155,6 +155,7 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
             enviarMensajeTexto($phone_number, "⚠️ La sucursal seleccionada no es válida.");
         }
     }
+    
     
     
     
@@ -252,9 +253,47 @@ function corregirFormatoTelefono($telefono) {
 }
 
 function guardarHistorialUsuario($telefono, $datos) {
-    file_put_contents("usuarios/$telefono.json", json_encode($datos));
-    file_put_contents("whatsapp_log.txt", "Guardando historial para $telefono: " . json_encode($datos) . "\n", FILE_APPEND);
+    global $pdo;
+
+    $stmt = $pdo->prepare("SELECT id FROM usuarios_historial WHERE telefono = ?");
+    $stmt->execute([$telefono]);
+    $existe = $stmt->fetch();
+
+    if ($existe) {
+        $sql = "UPDATE usuarios_historial SET 
+                    estado = :estado, 
+                    sucursal = :sucursal, 
+                    sucursal_nombre = :sucursal_nombre, 
+                    area = :area,
+                    updated_at = NOW()
+                WHERE telefono = :telefono";
+    } else {
+        $sql = "INSERT INTO usuarios_historial (telefono, estado, sucursal, sucursal_nombre, area)
+                VALUES (:telefono, :estado, :sucursal, :sucursal_nombre, :area)";
+    }
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([
+        ":telefono" => $telefono,
+        ":estado" => $datos['estado'] ?? null,
+        ":sucursal" => $datos['sucursal'] ?? null,
+        ":sucursal_nombre" => $datos['sucursal_nombre'] ?? null,
+        ":area" => $datos['area'] ?? null
+    ]);
+
+    file_put_contents("whatsapp_log.txt", "✅ Historial guardado en BD para $telefono: " . json_encode($datos) . "\n", FILE_APPEND);
 }
+
+function cargarHistorialUsuario($telefono) {
+    global $pdo;
+
+    $stmt = $pdo->prepare("SELECT * FROM usuarios_historial WHERE telefono = ?");
+    $stmt->execute([$telefono]);
+    $historial = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return $historial ?: [];
+}
+
 
 
 function guardarMensajeChat($telefono, $mensaje, $tipo = 'texto', $respuesta_bot = null, $estado = null, $nombre_usuario = null) {
