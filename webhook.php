@@ -84,64 +84,79 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 
     // **4️⃣ Si el usuario selecciona "Bolsa de Trabajo", responde con áreas laborales**
     elseif ($message_text === "bolsa_trabajo") {
-        enviarMensajeInteractivo($phone_number, 
-            "📢 *Actualmente contamos con diversas oportunidades laborales.*\n\n_¿En qué área le gustaría trabajar?_",
-            [
-                ["id" => "ventas", "title" => "Ventas"],
-                ["id" => "almacen", "title" => "Almacén"],
-                ["id" => "contabilidad", "title" => "Contabilidad"],
-                ["id" => "reparto", "title" => "Reparto"]
-            ]
-        );
-    }
-
-    // **5️⃣ Si el usuario selecciona un área laboral, ahora pedir la ciudad o estado**
-    elseif (in_array($message_text, ["ventas", "almacen", "contabilidad", "reparto"])) {
-        file_put_contents("whatsapp_log.txt", "Área laboral seleccionada: $message_text por $phone_number\n", FILE_APPEND);
-
-        // Guardamos el área en el historial del usuario
-        guardarHistorialUsuario($phone_number, ["estado" => "seleccion_ciudad", "area" => $message_text]);
-
-        // Preguntar la ciudad en lugar de mostrar la lista de sucursales
-        enviarMensajeTexto($phone_number, "📍 *¿En qué ciudad o estado te encuentras?*\n\nEscríbelo en un mensaje (Ejemplo: *Puebla*, *CDMX*, *Monterrey*...)");
-    }
-
-    // **6️⃣ Si el usuario responde con una ciudad, buscar la sucursal más cercana**
-    elseif ($estado_anterior === "seleccion_ciudad") {
-        // Extraer correctamente la ciudad escrita por el usuario
-        if (isset($message_data['text']['body'])) {
-            $ciudad = ucfirst(trim($message_data['text']['body']));
-        } else {
-            enviarMensajeTexto($phone_number, "⚠️ No pude leer la ciudad que escribiste. Inténtalo de nuevo.");
+        // Guardamos el nuevo estado
+        guardarHistorialUsuario($phone_number, ["estado" => "seleccion_sucursal"]);
+    
+        // Obtener sucursales con vacantes activas
+        $stmt = $pdo->query("
+            SELECT DISTINCT s.clave, s.nombre
+            FROM sucursales s
+            INNER JOIN vacantes v ON v.sucursal = s.nombre
+            WHERE s.status = 1 AND v.status = 'activo'
+            ORDER BY s.nombre ASC
+        ");
+        $sucursales = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+        if (count($sucursales) === 0) {
+            enviarMensajeTexto($phone_number, "⚠️ No hay vacantes disponibles en este momento.");
             return;
         }
     
-        file_put_contents("whatsapp_log.txt", "Usuario escribió la ciudad: $ciudad\n", FILE_APPEND);
+        // Construir lista interactiva en secciones de 10 máximo
+        $rows = [];
+        foreach ($sucursales as $sucursal) {
+            $rows[] = [
+                "id" => "sucursal_" . $sucursal['clave'],
+                "title" => $sucursal['nombre']
+            ];
+        }
     
-        // Buscar sucursal por coincidencia parcial en la base de datos
-        $stmt = $pdo->prepare("SELECT clave, nombre FROM sucursales WHERE nombre LIKE ? AND status = 1 LIMIT 1");
-        $stmt->execute(["%" . $ciudad . "%"]);
+        $chunks = array_chunk($rows, 10);
+        $secciones = [];
+        foreach ($chunks as $i => $chunk) {
+            $secciones[] = [
+                "title" => "Sucursales disponibles " . ($i + 1),
+                "rows" => $chunk
+            ];
+        }
+    
+        enviarMensajeInteractivo(
+            $phone_number,
+            "🏢 *Estas son las sucursales con vacantes activas.*\n\nPor favor, selecciona la sucursal en la que te gustaría trabajar:",
+            $secciones
+        );
+    }
+    
+    elseif (strpos($message_text, "sucursal_") === 0) {
+        $clave = str_replace("sucursal_", "", $message_text);
+    
+        // Buscar el nombre de la sucursal
+        $stmt = $pdo->prepare("SELECT nombre FROM sucursales WHERE clave = ? AND status = 1");
+        $stmt->execute([$clave]);
         $sucursal = $stmt->fetch(PDO::FETCH_ASSOC);
     
         if ($sucursal) {
-            file_put_contents("whatsapp_log.txt", "Sucursal encontrada: " . json_encode($sucursal) . "\n", FILE_APPEND);
-    
-            // Guardar en historial
             $historial = cargarHistorialUsuario($phone_number);
-            $historial['sucursal'] = $sucursal['clave'];
+            $historial['estado'] = 'seleccion_area';
+            $historial['sucursal'] = $clave;
             $historial['sucursal_nombre'] = $sucursal['nombre'];
-            $historial['estado'] = 'solicitar_nombre';
             guardarHistorialUsuario($phone_number, $historial);
     
-            // Pedir el nombre completo del usuario
-            enviarMensajeTexto($phone_number, "✍️ *Por favor, escribe tu nombre completo para continuar con el registro:*");
+            // Mostrar áreas laborales disponibles
+            enviarMensajeInteractivo($phone_number,
+                "📌 *Sucursal seleccionada:* {$sucursal['nombre']}.\n\n¿En qué área te gustaría trabajar?",
+                [
+                    ["id" => "ventas", "title" => "Ventas"],
+                    ["id" => "almacen", "title" => "Almacén"],
+                    ["id" => "contabilidad", "title" => "Contabilidad"],
+                    ["id" => "reparto", "title" => "Reparto"]
+                ]
+            );
         } else {
-            file_put_contents("whatsapp_log.txt", "⚠️ No se encontró una sucursal para la ciudad: $ciudad\n", FILE_APPEND);
-            enviarMensajeTexto($phone_number, "⚠️ No encontré ninguna sucursal con ese nombre.\n\nPor favor, intenta escribir otra ciudad o estado:");
+            enviarMensajeTexto($phone_number, "⚠️ La sucursal seleccionada no es válida.");
         }
     }
     
-
     
 
 }
@@ -267,19 +282,20 @@ function obtenerListaSucursales() {
 function guardarMensajeChat($telefono, $mensaje, $tipo = 'texto', $respuesta_bot = null, $estado = null, $nombre_usuario = null) {
     global $pdo;
 
-    $stmt = $pdo->prepare("INSERT INTO whatsapp_mensajes (telefono, nombre_usuario, mensaje, tipo_mensaje, respuesta_del_bot, flujo_estado) 
-                           VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->execute([
-        $telefono,
-        $nombre_usuario,
-        $mensaje,
-        $tipo,
-        $respuesta_bot,
-        $estado
-    ]);
-
-    // Opcional: log
-    file_put_contents("whatsapp_log.txt", "📝 Mensaje guardado: $telefono => $mensaje\n", FILE_APPEND);
+    try {
+        $stmt = $pdo->prepare("INSERT INTO whatsapp_mensajes (telefono, nombre_usuario, mensaje, tipo_mensaje, respuesta_del_bot, flujo_estado) 
+                               VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([
+            $telefono,
+            $nombre_usuario,
+            $mensaje,
+            $tipo,
+            $respuesta_bot,
+            $estado
+        ]);
+    } catch (PDOException $e) {
+        file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error en guardarMensajeChat: " . $e->getMessage() . "\n", FILE_APPEND);
+    }
 }
 
 
