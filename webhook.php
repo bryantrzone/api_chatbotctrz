@@ -29,7 +29,6 @@ file_put_contents("whatsapp_log.txt", json_encode($input, JSON_PRETTY_PRINT) . "
 if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     $message_data = $input['entry'][0]['changes'][0]['value']['messages'][0];
     $phone_number = corregirFormatoTelefono($message_data['from']); // Número del usuario
-    // $message_text = strtolower(trim($message_data['text']['body'] ?? ''));
 
    // Variables iniciales
     $message_text = "";
@@ -47,11 +46,12 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         $tipo_mensaje = 'lista';
     }
 
-    $estado = cargarHistorialUsuario($phone_number)['estado'] ?? null;
+    // Cargar estado actual del usuario
+    $historial_usuario = cargarHistorialUsuario($phone_number);
+    $estado = $historial_usuario['estado'] ?? null;
 
     // Guardar en la base de datos si tenemos algo
     if (!empty($message_text)) {
-        // $estado = cargarHistorialUsuario($phone_number)['estado'] ?? null;
         $nombre_usuario = $input['entry'][0]['changes'][0]['value']['contacts'][0]['profile']['name'] ?? null;
 
         guardarMensajeChat(
@@ -64,9 +64,8 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         );
     }
 
-
     // **Guardar logs del mensaje recibido**
-    file_put_contents("whatsapp_log.txt", "Número: $phone_number, Mensaje: $message_text\n", FILE_APPEND);
+    file_put_contents("whatsapp_log.txt", "Número: $phone_number, Mensaje: $message_text, Estado actual: $estado\n", FILE_APPEND);
 
 
     // **3️⃣ Si el usuario envía "Hola", responde con el menú interactivo**
@@ -155,7 +154,8 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         }
     }
 
-    elseif ($estado_anterior === "mostrar_vacantes" || $estado_anterior === "seleccion_area") {
+    // Corregido: Usando $estado en lugar de $estado_anterior que no existía
+    elseif ($estado === "seleccion_area" || $estado === "mostrar_vacantes") {
         $area = ucwords(str_replace('_', ' ', strtolower($message_text))); // "ventas" => "Ventas"
         $historial = cargarHistorialUsuario($phone_number);
         $sucursal_nombre = $historial['sucursal_nombre'] ?? null;
@@ -200,20 +200,50 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, 'esperando_vacante_id');
     }
     
-    
-    
-    
-    
-    
-    
-
+    // Agregar manejo para estado esperando_vacante_id
+    elseif ($estado === "esperando_vacante_id") {
+        // Verificar que el mensaje es un número de ID
+        if (is_numeric($message_text)) {
+            $vacante_id = intval($message_text);
+            $historial = cargarHistorialUsuario($phone_number);
+            $sucursal_nombre = $historial['sucursal_nombre'] ?? null;
+            $area = $historial['area'] ?? null;
+            
+            // Verificar que la vacante existe
+            $stmt = $pdo->prepare("SELECT nombre FROM vacantes WHERE id = ? AND status = 'activo' AND sucursal = ? AND area = ?");
+            $stmt->execute([$vacante_id, $sucursal_nombre, $area]);
+            $vacante = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($vacante) {
+                // Actualizar historial
+                $historial['estado'] = 'registro_datos';
+                $historial['vacante_id'] = $vacante_id;
+                $historial['vacante_nombre'] = $vacante['nombre'];
+                guardarHistorialUsuario($phone_number, $historial);
+                
+                // Enviar mensaje para continuar con registro
+                $mensaje = "✅ *Has seleccionado la vacante:* {$vacante['nombre']}\n\n";
+                $mensaje .= "Para completar tu registro, por favor envía tus datos con el siguiente formato:\n\n";
+                $mensaje .= "*Nombre:* Tu Nombre Completo\n";
+                $mensaje .= "*Edad:* Tu Edad\n";
+                $mensaje .= "*Experiencia:* Tu Experiencia Relevante\n";
+                
+                enviarMensajeTexto($phone_number, $mensaje);
+            } else {
+                enviarMensajeTexto($phone_number, "⚠️ La vacante seleccionada no existe o no está disponible. Por favor, selecciona un ID válido.");
+            }
+        } else {
+            enviarMensajeTexto($phone_number, "⚠️ Por favor, responde únicamente con el número ID de la vacante que te interesa.");
+        }
+    }
 }
 
 // **4️⃣ Función para enviar respuestas interactivas a WhatsApp**
 function enviarMensajeInteractivo($telefono, $mensaje, $secciones = []) {
     global $API_URL, $ACCESS_TOKEN;
 
-    // $telefono = corregirFormatoTelefono($telefono);
+    // Asegurar formato correcto de teléfono
+    $telefono = corregirFormatoTelefono($telefono);
 
     $payload = [
         "messaging_product" => "whatsapp",
@@ -241,13 +271,20 @@ function enviarMensajeInteractivo($telefono, $mensaje, $secciones = []) {
         ]
     ]);
 
-    $response = file_get_contents($API_URL, false, $context);
-
-    // Guardar log
-    file_put_contents("whatsapp_log.txt", "🟡 Envío de lista interactiva a $telefono\nPayload:\n" . json_encode($payload, JSON_PRETTY_PRINT) . "\n\nRespuesta:\n$response\n\n", FILE_APPEND);
+    $response = @file_get_contents($API_URL, false, $context);
+    
+    if ($response === false) {
+        $error = error_get_last();
+        file_put_contents("whatsapp_log.txt", "❌ Error al enviar mensaje interactivo: " . $error['message'] . "\n", FILE_APPEND);
+    } else {
+        // Guardar log
+        file_put_contents("whatsapp_log.txt", "🟡 Envío de lista interactiva a $telefono\nPayload:\n" . json_encode($payload, JSON_PRETTY_PRINT) . "\n\nRespuesta:\n$response\n\n", FILE_APPEND);
+        
+        // Guardar mensaje del bot
+        $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
+        guardarMensajeChat($telefono, null, 'respuesta', $mensaje, $estado);
+    }
 }
-
-
 
 function enviarMensajeTexto($telefono, $mensaje) {
     global $API_URL, $ACCESS_TOKEN;
@@ -272,14 +309,19 @@ function enviarMensajeTexto($telefono, $mensaje) {
         ]
     ]);
 
-    $response = file_get_contents($API_URL, false, $context);
-    file_put_contents("whatsapp_log.txt", "🔁 Respuesta de WhatsApp: " . $response . "\n", FILE_APPEND);
+    $response = @file_get_contents($API_URL, false, $context);
+    
+    if ($response === false) {
+        $error = error_get_last();
+        file_put_contents("whatsapp_log.txt", "❌ Error al enviar mensaje de texto: " . $error['message'] . "\n", FILE_APPEND);
+    } else {
+        file_put_contents("whatsapp_log.txt", "🔁 Respuesta de WhatsApp: " . $response . "\n", FILE_APPEND);
 
-    // Guardar mensaje del bot
-    $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
-    guardarMensajeChat($telefono, null, 'respuesta', $mensaje, $estado);
+        // Guardar mensaje del bot
+        $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
+        guardarMensajeChat($telefono, null, 'respuesta', $mensaje, $estado);
+    }
 }
-
 
 // **5️⃣ Función para enviar la solicitud a la API de WhatsApp**
 function enviarAPI($payload) {
@@ -295,13 +337,21 @@ function enviarAPI($payload) {
         ]
     ]);
 
-    $response = file_get_contents($API_URL, false, $context);
-
-    file_put_contents("whatsapp_log.txt", "Respuesta de WhatsApp: " . $response . "\n", FILE_APPEND);
+    $response = @file_get_contents($API_URL, false, $context);
+    
+    if ($response === false) {
+        $error = error_get_last();
+        file_put_contents("whatsapp_log.txt", "❌ Error al enviar mensaje a la API: " . $error['message'] . "\n", FILE_APPEND);
+        return false;
+    } else {
+        file_put_contents("whatsapp_log.txt", "Respuesta de WhatsApp: " . $response . "\n", FILE_APPEND);
+        return $response;
+    }
 }
 
 
 function corregirFormatoTelefono($telefono) {
+    // Aplicar formato consistente para el teléfono
     if (preg_match('/^521(\d{10})$/', $telefono, $matches)) {
         return "52" . $matches[1]; // Elimina el "1"
     }
@@ -310,50 +360,72 @@ function corregirFormatoTelefono($telefono) {
 
 function guardarHistorialUsuario($telefono, $datos) {
     global $pdo;
+    
+    // Asegurar formato correcto del teléfono
+    $telefono = corregirFormatoTelefono($telefono);
 
-    $stmt = $pdo->prepare("SELECT id FROM usuarios_historial WHERE telefono = ?");
-    $stmt->execute([$telefono]);
-    $existe = $stmt->fetch();
+    try {
+        $stmt = $pdo->prepare("SELECT id FROM usuarios_historial WHERE telefono = ?");
+        $stmt->execute([$telefono]);
+        $existe = $stmt->fetch();
 
-    if ($existe) {
-        $sql = "UPDATE usuarios_historial SET 
-                    estado = :estado, 
-                    sucursal = :sucursal, 
-                    sucursal_nombre = :sucursal_nombre, 
-                    area = :area,
-                    updated_at = NOW()
-                WHERE telefono = :telefono";
-    } else {
-        $sql = "INSERT INTO usuarios_historial (telefono, estado, sucursal, sucursal_nombre, area)
-                VALUES (:telefono, :estado, :sucursal, :sucursal_nombre, :area)";
+        if ($existe) {
+            $sql = "UPDATE usuarios_historial SET 
+                        estado = :estado, 
+                        sucursal = :sucursal, 
+                        sucursal_nombre = :sucursal_nombre, 
+                        area = :area,
+                        vacante_id = :vacante_id,
+                        vacante_nombre = :vacante_nombre,
+                        updated_at = NOW()
+                    WHERE telefono = :telefono";
+        } else {
+            $sql = "INSERT INTO usuarios_historial (telefono, estado, sucursal, sucursal_nombre, area, vacante_id, vacante_nombre)
+                    VALUES (:telefono, :estado, :sucursal, :sucursal_nombre, :area, :vacante_id, :vacante_nombre)";
+        }
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ":telefono" => $telefono,
+            ":estado" => $datos['estado'] ?? null,
+            ":sucursal" => $datos['sucursal'] ?? null,
+            ":sucursal_nombre" => $datos['sucursal_nombre'] ?? null,
+            ":area" => $datos['area'] ?? null,
+            ":vacante_id" => $datos['vacante_id'] ?? null,
+            ":vacante_nombre" => $datos['vacante_nombre'] ?? null
+        ]);
+
+        file_put_contents("whatsapp_log.txt", "✅ Historial guardado en BD para $telefono: " . json_encode($datos) . "\n", FILE_APPEND);
+        return true;
+    } catch (PDOException $e) {
+        file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error en guardarHistorialUsuario: " . $e->getMessage() . "\n", FILE_APPEND);
+        return false;
     }
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        ":telefono" => $telefono,
-        ":estado" => $datos['estado'] ?? null,
-        ":sucursal" => $datos['sucursal'] ?? null,
-        ":sucursal_nombre" => $datos['sucursal_nombre'] ?? null,
-        ":area" => $datos['area'] ?? null
-    ]);
-
-    file_put_contents("whatsapp_log.txt", "✅ Historial guardado en BD para $telefono: " . json_encode($datos) . "\n", FILE_APPEND);
 }
 
 function cargarHistorialUsuario($telefono) {
     global $pdo;
 
-    $stmt = $pdo->prepare("SELECT * FROM usuarios_historial WHERE telefono = ?");
-    $stmt->execute([$telefono]);
-    $historial = $stmt->fetch(PDO::FETCH_ASSOC);
+    // Asegurar formato correcto del teléfono
+    $telefono = corregirFormatoTelefono($telefono);
 
-    return $historial ?: [];
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM usuarios_historial WHERE telefono = ?");
+        $stmt->execute([$telefono]);
+        $historial = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $historial ?: [];
+    } catch (PDOException $e) {
+        file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error en cargarHistorialUsuario: " . $e->getMessage() . "\n", FILE_APPEND);
+        return [];
+    }
 }
-
-
 
 function guardarMensajeChat($telefono, $mensaje, $tipo = 'texto', $respuesta_bot = null, $estado = null, $nombre_usuario = null) {
     global $pdo;
+
+    // Asegurar formato correcto del teléfono
+    $telefono = corregirFormatoTelefono($telefono);
 
     try {
         $stmt = $pdo->prepare("INSERT INTO whatsapp_mensajes (telefono, nombre_usuario, mensaje, tipo_mensaje, respuesta_del_bot, flujo_estado) 
@@ -366,8 +438,10 @@ function guardarMensajeChat($telefono, $mensaje, $tipo = 'texto', $respuesta_bot
             $respuesta_bot,
             $estado
         ]);
+        return true;
     } catch (PDOException $e) {
         file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error en guardarMensajeChat: " . $e->getMessage() . "\n", FILE_APPEND);
+        return false;
     }
 }
 
@@ -404,8 +478,4 @@ function obtenerListaSucursales() {
         return [];
     }
 }
-
-
-
-
 ?>
