@@ -134,7 +134,7 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 function enviarMensajeInteractivo($telefono, $mensaje, $secciones = []) {
     global $API_URL, $ACCESS_TOKEN;
 
-    $telefono = corregirFormatoTelefono($telefono);
+    // $telefono = corregirFormatoTelefono($telefono);
 
     $payload = [
         "messaging_product" => "whatsapp",
@@ -148,17 +148,26 @@ function enviarMensajeInteractivo($telefono, $mensaje, $secciones = []) {
             "footer" => ["text" => "Powered by Halconet"],
             "action" => [
                 "button" => "Elegir",
-                "sections" => $secciones  // ✅ AQUÍ USAMOS DIRECTAMENTE LAS SECCIONES CORRECTAS
+                "sections" => $secciones
             ]
         ]
     ];
 
-    enviarAPI($payload);
+    // Enviar a la API
+    $context = stream_context_create([
+        "http" => [
+            "method" => "POST",
+            "header" => "Authorization: Bearer $ACCESS_TOKEN\r\nContent-Type: application/json",
+            "content" => json_encode($payload)
+        ]
+    ]);
 
-    // Guardar mensaje si lo necesitas
-    // $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
-    // guardarMensajeChat($telefono, null, 'respuesta_interactiva', $mensaje, $estado);
+    $response = file_get_contents($API_URL, false, $context);
+
+    // Guardar log
+    file_put_contents("whatsapp_log.txt", "🟡 Envío de lista interactiva a $telefono\nPayload:\n" . json_encode($payload, JSON_PRETTY_PRINT) . "\n\nRespuesta:\n$response\n\n", FILE_APPEND);
 }
+
 
 
 function enviarMensajeTexto($telefono, $mensaje) {
@@ -238,30 +247,37 @@ function guardarMensajeChat($telefono, $mensaje, $tipo = 'texto', $respuesta_bot
 function obtenerListaSucursales() {
     global $pdo;
 
-    $stmt = $pdo->prepare("
-        SELECT DISTINCT s.clave, s.nombre
-        FROM sucursales s
-        INNER JOIN vacantes v ON v.sucursal = s.nombre
-        WHERE s.status = 1 AND v.status = 'activo'
-        ORDER BY s.nombre ASC
-    ");
-    $stmt->execute();
-    $sucursales = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT s.clave, s.nombre
+            FROM sucursales s
+            INNER JOIN vacantes v ON v.sucursal = s.nombre
+            WHERE s.status = 1 AND v.status = 'activo'
+            ORDER BY s.nombre ASC
+        ");
+        $stmt->execute();
+        $sucursales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $rows = [];
-    foreach ($sucursales as $sucursal) {
-        $rows[] = [
-            "id" => "sucursal_" . $sucursal['clave'],
-            "title" => $sucursal['nombre']
-        ];
+        $rows = [];
+        foreach ($sucursales as $sucursal) {
+            $rows[] = [
+                "id" => "sucursal_" . $sucursal['clave'], // este ID se usará para el flujo
+                "title" => $sucursal['nombre']
+            ];
+        }
+
+        // WhatsApp permite máx 10 por sección. Aquí asumimos <10.
+        return [[
+            "title" => "Sucursales disponibles",
+            "rows" => $rows
+        ]];
+
+    } catch (PDOException $e) {
+        file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error al obtener sucursales: " . $e->getMessage() . "\n", FILE_APPEND);
+        return [];
     }
-
-    // Solo una sección si son menos de 10
-    return [[
-        "title" => "Sucursales disponibles",
-        "rows" => $rows
-    ]];
 }
+
 
 
 
