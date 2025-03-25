@@ -25,6 +25,9 @@ $input = json_decode(file_get_contents("php://input"), true);
 // **Guardar logs de la solicitud para debug**
 file_put_contents("whatsapp_log.txt", json_encode($input, JSON_PRETTY_PRINT) . "\n", FILE_APPEND);
 
+// Al inicio de tu script, añade un log para registrar el mensaje entrante
+file_put_contents("whatsapp_log.txt", "📩 Mensaje recibido de $phone_number: '$message_text', Estado actual: $estado\n", FILE_APPEND);
+
 // **Verificar que el mensaje es válido**
 if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     $message_data = $input['entry'][0]['changes'][0]['value']['messages'][0];
@@ -531,6 +534,69 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         // Guardar mensaje en el historial
         guardarMensajeChat($phone_number, null, 'respuesta', "Menú principal mostrado", "menu_principal");
     }
+
+    // Añade este bloque ANTES del bloque que compartiste
+    if (strpos($message_text, "ver_detalles_") === 0) {
+        $vacante_id = intval(str_replace("ver_detalles_", "", $message_text));
+        
+        // Registrar en el log para depuración
+        file_put_contents("whatsapp_log.txt", "🔍 Ver detalles para vacante ID: $vacante_id\n", FILE_APPEND);
+        
+        // Cargar historial del usuario
+        $historial = cargarHistorialUsuario($phone_number);
+        
+        try {
+            // Obtener detalles de la vacante
+            $stmt = $pdo->prepare("SELECT * FROM vacantes WHERE id = ?");
+            $stmt->execute([$vacante_id]);
+            $vacante = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$vacante) {
+                enviarMensajeTexto($phone_number, "⚠️ No se encontró la vacante solicitada.");
+                return;
+            }
+            
+            // Actualizar historial - guarda la vacante que el usuario está viendo
+            $historial['vacante_actual'] = $vacante_id;
+            $historial['estado'] = 'ver_detalles';
+            guardarHistorialUsuario($phone_number, $historial);
+            
+            // Crear mensaje con todos los detalles
+            $mensaje = "📋 *DETALLES DE LA VACANTE*\n\n"
+                    . "📢 *{$vacante['nombre']}*\n"
+                    . "📍 *Sucursal:* {$vacante['sucursal']}\n"
+                    . "🏢 *Área:* {$vacante['area']}\n"
+                    . "📝 *Descripción:* {$vacante['descripcion']}\n"
+                    . "⏰ *Horario:* {$vacante['horario']}\n";
+            
+            // Si hay más campos en tu tabla de vacantes, agrégalos aquí
+            if (!empty($vacante['requisitos'])) {
+                $mensaje .= "✅ *Requisitos:* {$vacante['requisitos']}\n";
+            }
+            
+            if (!empty($vacante['sueldo'])) {
+                $mensaje .= "💰 *Sueldo:* {$vacante['sueldo']}\n";
+            }
+            
+            if (!empty($vacante['beneficios'])) {
+                $mensaje .= "🎁 *Beneficios:* {$vacante['beneficios']}\n";
+            }
+            
+            $mensaje .= "\n¿Te interesa postularte para esta vacante?";
+            
+            // Enviar mensaje con botones para postularse o ver otras vacantes
+            enviarMensajeConBotones($phone_number, $mensaje, [
+                ["id" => "postularme_{$vacante_id}", "title" => "¡Sí, postularme!"],
+                ["id" => "ver_otra", "title" => "Ver otras vacantes"]
+            ]);
+            
+        } catch (PDOException $e) {
+            file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error al obtener detalles de vacante: " . $e->getMessage() . "\n", FILE_APPEND);
+            enviarMensajeTexto($phone_number, "⚠️ Ocurrió un error al procesar tu solicitud. Por favor, intenta nuevamente.");
+        }
+        
+        return; // Importante: termina la ejecución después de manejar esta acción
+    }
     
     // Manejo de selección de área y mostrar vacantes
     elseif ($estado === "seleccion_area" || $estado === "mostrar_vacantes") {
@@ -712,7 +778,7 @@ function corregirFormatoTelefono($telefono) {
     if (preg_match('/^521(\d{10})$/', $telefono, $matches)) {
         return "52" . $matches[1]; // Elimina el "1"
     }
-    
+
     file_put_contents("whatsapp_log.txt", "📱 Teléfono corregido: $telefono\n", FILE_APPEND);
     return $telefono;
 }
