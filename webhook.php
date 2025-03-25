@@ -707,16 +707,14 @@ function enviarAPI($payload) {
 
 
 function corregirFormatoTelefono($telefono) {
-   // Eliminar todos los caracteres que no sean dígitos
-   $telefono = preg_replace('/[^0-9]/', '', $telefono);
+
+    // Aplicar formato consistente para el teléfono
+    if (preg_match('/^521(\d{10})$/', $telefono, $matches)) {
+        return "52" . $matches[1]; // Elimina el "1"
+    }
     
-   // Asegurar que comienza con el código de país (52 para México)
-   if (strlen($telefono) == 10) {
-       $telefono = '52' . $telefono;
-   }
-   
-   file_put_contents("whatsapp_log.txt", "📱 Teléfono corregido: $telefono\n", FILE_APPEND);
-   return $telefono;
+    file_put_contents("whatsapp_log.txt", "📱 Teléfono corregido: $telefono\n", FILE_APPEND);
+    return $telefono;
 }
 
 function guardarHistorialUsuario($telefono, $datos) {
