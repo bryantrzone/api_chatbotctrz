@@ -32,7 +32,7 @@ file_put_contents("whatsapp_log.txt", "📩 Mensaje recibido de $phone_number: '
 // if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 if (isset($data['entry'][0]['changes'][0]['value']['messages'][0]['type'])) {
 
-    // $message_data = $input['entry'][0]['changes'][0]['value']['messages'][0];
+    $message_data = $input['entry'][0]['changes'][0]['value']['messages'][0];
     // $phone_number = corregirFormatoTelefono($message_data['from']); // Número del usuario
     $message_type = $data['entry'][0]['changes'][0]['value']['messages'][0]['type'];
     $phone_number = $data['entry'][0]['changes'][0]['value']['messages'][0]['from'];
