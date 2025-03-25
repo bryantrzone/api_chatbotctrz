@@ -29,9 +29,50 @@ file_put_contents("whatsapp_log.txt", json_encode($input, JSON_PRETTY_PRINT) . "
 file_put_contents("whatsapp_log.txt", "📩 Mensaje recibido de $phone_number: '$message_text', Estado actual: $estado\n", FILE_APPEND);
 
 // **Verificar que el mensaje es válido**
-if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
-    $message_data = $input['entry'][0]['changes'][0]['value']['messages'][0];
-    $phone_number = corregirFormatoTelefono($message_data['from']); // Número del usuario
+// if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
+if (isset($data['entry'][0]['changes'][0]['value']['messages'][0]['type'])) {
+
+    // $message_data = $input['entry'][0]['changes'][0]['value']['messages'][0];
+    // $phone_number = corregirFormatoTelefono($message_data['from']); // Número del usuario
+    $message_type = $data['entry'][0]['changes'][0]['value']['messages'][0]['type'];
+    $phone_number = $data['entry'][0]['changes'][0]['value']['messages'][0]['from'];
+
+    // Verificar el tipo de mensaje
+    if ($message_type === 'document' || $message_type === 'image') {
+        $historial = cargarHistorialUsuario($phone_number);
+        $estado = $historial['estado'] ?? 'inicio';
+        
+        // Solo procesamos archivos si estamos en el estado correcto
+        if ($estado === 'registro_datos' && $historial['registro_paso'] === 'completo') {
+            // Es un documento
+            if ($message_type === 'document') {
+                $media_id = $data['entry'][0]['changes'][0]['value']['messages'][0]['document']['id'];
+                $file_name = $data['entry'][0]['changes'][0]['value']['messages'][0]['document']['filename'];
+                $mime_type = $data['entry'][0]['changes'][0]['value']['messages'][0]['document']['mime_type'];
+                
+                // Verificar tipos de archivo permitidos
+                $allowed_mime_types = [
+                    'application/pdf', 
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+                    'application/msword' // .doc
+                ];
+                
+                if (in_array($mime_type, $allowed_mime_types)) {
+                    procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $historial);
+                } else {
+                    enviarMensajeTexto($phone_number, "⚠️ Formato no soportado. Por favor, envía tu CV en formato PDF o Word (.doc/.docx).");
+                }
+            }
+            // Es una imagen
+            else if ($message_type === 'image') {
+                $media_id = $data['entry'][0]['changes'][0]['value']['messages'][0]['image']['id'];
+                $mime_type = $data['entry'][0]['changes'][0]['value']['messages'][0]['image']['mime_type'];
+                $file_name = "imagen_cv_" . time() . ".jpg"; // Generamos un nombre para la imagen
+                
+                procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $historial);
+            }
+        }
+    }
 
    // Variables iniciales
     $message_text = "";
@@ -174,9 +215,11 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
                             ["id" => "menu_principal", "title" => "Volver al menú"]
                         ]);
                         
-                        // Resetear el estado para permitir otras operaciones
-                        $historial['estado'] = 'postulacion_completada';
-                        guardarHistorialUsuario($phone_number, $historial);
+                        $mensaje .= "\n\n📄 *¡Un paso más!* Si tienes tu CV listo, puedes enviarlo ahora como archivo PDF, Word o una imagen. Esto ayudará a nuestro equipo a evaluar mejor tu perfil.";
+
+                        // Cambiar el paso a "esperando_cv" en vez de "completo"
+                        $historial['registro_paso'] = 'esperando_cv'; 
+                        guardarHistorialUsuario($phone_number, $historial);    
                         
                     } catch (PDOException $e) {
                         file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error al guardar postulación: " . $e->getMessage() . "\n", FILE_APPEND);
@@ -190,7 +233,39 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
                     guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
                 }
                 break;
-                
+            case 'esperando_cv':
+                // Si el usuario envía texto en vez de un archivo
+                if ($message_type === 'text') {
+                    if (strtolower($message_text) === 'no tengo cv' || 
+                        strtolower($message_text) === 'no' || 
+                        strtolower($message_text) === 'pasar' || 
+                        strtolower($message_text) === 'omitir') {
+                        
+                        // El usuario indica que no tiene CV o quiere omitir este paso
+                        $mensaje = "No hay problema. Hemos registrado tu postulación sin adjuntar CV.\n\n";
+                        $mensaje .= "Si en algún momento deseas enviarlo, simplemente envíanos el archivo y lo adjuntaremos a tu postulación.";
+                        
+                        enviarMensajeTexto($phone_number, $mensaje);
+                        guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                        
+                        // Actualizar el estado
+                        $historial['registro_paso'] = 'completo';
+                        guardarHistorialUsuario($phone_number, $historial);
+                        
+                        // Ofrecer opciones para continuar
+                        enviarMensajeConBotones($phone_number, "¿Qué te gustaría hacer ahora?", [
+                            ["id" => "ver_otra", "title" => "Ver otras vacantes"],
+                            ["id" => "menu_principal", "title" => "Volver al menú"]
+                        ]);
+                    } else {
+                        // Recordar al usuario que esperamos un archivo
+                        $mensaje = "Estamos esperando tu CV en formato PDF, Word o imagen. Si no tienes CV, puedes escribir 'No tengo CV' para omitir este paso.";
+                        enviarMensajeTexto($phone_number, $mensaje);
+                        guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                    }
+                }
+                // Si es un documento o imagen, ya se maneja en la parte superior del script
+                break;
             case 'completo':
                 // Si el usuario escribe algo después de completar el registro
                 $mensaje = "Ya has completado tu postulación. ¿Qué te gustaría hacer ahora?";
@@ -434,9 +509,9 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
                 [
                     "title" => "Opciones de servicio",
                     "rows" => [
-                        ["id" => "bolsa_trabajo", "title" => "Bolsa de Trabajo"],
-                        ["id" => "atencion_clientes", "title" => "Atención a clientes"],
-                        ["id" => "cotizacion", "title" => "Cotización"]
+                        ["id" => "bolsa_trabajo", "title" => "Lista de vacantes"],
+                        ["id" => "postularme_vacante", "title" => "Postularme a una vacante"],
+                        ["id" => "quejas_gtrz", "title" => "Quejas Grupo Tractozone"],                        
                     ]
                 ]
             ]
@@ -658,6 +733,8 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         enviarMensajeTexto($phone_number, "👋 Hola, para comenzar a usar este servicio, por favor escribe 'Hola' o 'Menú' para ver las opciones disponibles.");
         }
     }
+
+
 } // Cierre del bloque principal
 
 // **4️⃣ Función para enviar respuestas interactivas a WhatsApp**
@@ -965,6 +1042,154 @@ function enviarMensajeConBotones($telefono, $mensaje, $botones) {
     // Guardar mensaje del bot
     $estado = cargarHistorialUsuario($telefono)['estado'] ?? null;
     guardarMensajeChat($telefono, null, 'respuesta_botones', $mensaje, $estado);
+}
+
+// Función para procesar archivos recibidos
+function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $historial) {
+    global $pdo;
+    
+    // Directorio para guardar los archivos
+    $upload_dir = 'uploads/cv/';
+    
+    // Crear el directorio si no existe
+    if (!file_exists($upload_dir)) {
+        mkdir($upload_dir, 0755, true);
+    }
+    
+    // Generar nombre de archivo único
+    $file_extension = pathinfo($file_name, PATHINFO_EXTENSION);
+    if (empty($file_extension)) {
+        // Determinar extensión basada en MIME type si no hay extensión
+        switch ($mime_type) {
+            case 'application/pdf':
+                $file_extension = 'pdf';
+                break;
+            case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+                $file_extension = 'docx';
+                break;
+            case 'application/msword':
+                $file_extension = 'doc';
+                break;
+            case 'image/jpeg':
+            case 'image/jpg':
+                $file_extension = 'jpg';
+                break;
+            case 'image/png':
+                $file_extension = 'png';
+                break;
+            default:
+                $file_extension = 'bin';
+        }
+    }
+    
+    $unique_file_name = uniqid('cv_' . $phone_number . '_') . '.' . $file_extension;
+    $file_path = $upload_dir . $unique_file_name;
+    
+    // Descargar el archivo de WhatsApp
+    $file_content = descargarMediaWhatsApp($media_id);
+    
+    if ($file_content) {
+        // Guardar el archivo en el servidor
+        file_put_contents($file_path, $file_content);
+        
+        // Actualizar la base de datos
+        try {
+            // Primero, verificar si ya existe una postulación para actualizar
+            $stmt = $pdo->prepare("SELECT id FROM postulaciones WHERE telefono = ? AND vacante_id = ? ORDER BY id DESC LIMIT 1");
+            $stmt->execute([$phone_number, $historial['vacante_id']]);
+            $postulacion = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($postulacion) {
+                // Actualizar la postulación existente
+                $stmt = $pdo->prepare("UPDATE postulaciones SET cv_path = ? WHERE id = ?");
+                $stmt->execute([$file_path, $postulacion['id']]);
+            } else {
+                // Crear una nueva postulación si no existe
+                $stmt = $pdo->prepare("INSERT INTO postulaciones 
+                    (telefono, nombre, edad, experiencia, email, vacante_id, cv_path, fecha_postulacion, status) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 'pendiente')");
+                
+                $stmt->execute([
+                    $phone_number,
+                    $historial['nombre'],
+                    $historial['edad'] ?? null,
+                    $historial['experiencia'] ?? null,
+                    $historial['email'] ?? null,
+                    $historial['vacante_id'],
+                    $file_path
+                ]);
+            }
+            
+            // Actualizar el historial del usuario
+            $historial['cv_path'] = $file_path;
+            guardarHistorialUsuario($phone_number, $historial);
+            
+            // Enviar confirmación
+            $mensaje = "✅ *¡Tu CV ha sido recibido correctamente!*\n\n";
+            $mensaje .= "Hemos adjuntado tu documento a tu postulación para *{$historial['vacante_nombre']}*.\n\n";
+            $mensaje .= "Nuestro equipo de recursos humanos se pondrá en contacto contigo pronto para continuar con el proceso.";
+            
+            enviarMensajeTexto($phone_number, $mensaje);
+            guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+            
+            // Pequeña pausa
+            sleep(1);
+            
+            // Ofrecer opciones para continuar
+            enviarMensajeConBotones($phone_number, "¿Qué te gustaría hacer ahora?", [
+                ["id" => "ver_otra", "title" => "Ver otras vacantes"],
+                ["id" => "menu_principal", "title" => "Volver al menú"]
+            ]);
+            
+        } catch (PDOException $e) {
+            file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error al guardar CV: " . $e->getMessage() . "\n", FILE_APPEND);
+            enviarMensajeTexto($phone_number, "❌ Hubo un error al procesar tu documento. Por favor, intenta nuevamente o contacta a soporte.");
+        }
+    } else {
+        enviarMensajeTexto($phone_number, "❌ No pudimos descargar tu documento. Por favor, intenta enviarlo nuevamente.");
+    }
+}
+
+// Función para descargar media de WhatsApp
+function descargarMediaWhatsApp($media_id) {
+    // Token de acceso de WhatsApp (deberás usar el tuyo)
+    $token = $config['ACCESS_TOKEN'];
+    
+    file_put_contents("whatsapp_log.txt", "🔄 Intentando descargar media ID: $media_id\n", FILE_APPEND);
+    
+    // Primero obtenemos la URL del archivo
+    $url = "https://graph.facebook.com/v22.0/{$media_id}";
+    $headers = [
+        'Authorization: Bearer ' . $token
+    ];
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    
+    $response = curl_exec($ch);
+    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    file_put_contents("whatsapp_log.txt", "📊 Respuesta API WhatsApp: $status - $response\n", FILE_APPEND);
+    
+    $data = json_decode($response, true);
+    
+    if (isset($data['url'])) {
+        // Descargar el archivo de la URL
+        $file_ch = curl_init();
+        curl_setopt($file_ch, CURLOPT_URL, $data['url']);
+        curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($file_ch, CURLOPT_HTTPHEADER, $headers);
+        
+        $file_content = curl_exec($file_ch);
+        curl_close($file_ch);
+        
+        return $file_content;
+    }
+    
+    return false;
 }
 
 ?>
