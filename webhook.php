@@ -298,7 +298,13 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         
         if ($vacante) {
             // Actualizar el estado del usuario - IMPORTANTE para el flujo de registro
+                // Al inicio, antes de cargar el historial
+            file_put_contents("whatsapp_log.txt", "🔍 Intentando cargar historial para: $phone_number\n", FILE_APPEND);
+
             $historial = cargarHistorialUsuario($phone_number);
+            // Después de cargar el historial
+            file_put_contents("whatsapp_log.txt", "📊 Historial cargado: " . json_encode($historial) . "\n", FILE_APPEND);
+            
             $historial['estado'] = 'registro_datos';
             $historial['registro_paso'] = 'inicio';
             $historial['vacante_id'] = $vacante_id;
@@ -701,11 +707,16 @@ function enviarAPI($payload) {
 
 
 function corregirFormatoTelefono($telefono) {
-    // Aplicar formato consistente para el teléfono
-    if (preg_match('/^521(\d{10})$/', $telefono, $matches)) {
-        return "52" . $matches[1]; // Elimina el "1"
-    }
-    return $telefono;
+   // Eliminar todos los caracteres que no sean dígitos
+   $telefono = preg_replace('/[^0-9]/', '', $telefono);
+    
+   // Asegurar que comienza con el código de país (52 para México)
+   if (strlen($telefono) == 10) {
+       $telefono = '52' . $telefono;
+   }
+   
+   file_put_contents("whatsapp_log.txt", "📱 Teléfono corregido: $telefono\n", FILE_APPEND);
+   return $telefono;
 }
 
 function guardarHistorialUsuario($telefono, $datos) {
@@ -713,6 +724,8 @@ function guardarHistorialUsuario($telefono, $datos) {
     
     // Asegurar formato correcto del teléfono
     $telefono = corregirFormatoTelefono($telefono);
+    
+    file_put_contents("whatsapp_log.txt", "📝 Intentando guardar historial para: $telefono con datos: " . json_encode($datos) . "\n", FILE_APPEND);
 
     try {
         $stmt = $pdo->prepare("SELECT id FROM usuarios_historial WHERE telefono = ?");
@@ -720,46 +733,47 @@ function guardarHistorialUsuario($telefono, $datos) {
         $existe = $stmt->fetch();
 
         if ($existe) {
-            $sql = "UPDATE usuarios_historial SET 
-                        estado = :estado, 
-                        sucursal = :sucursal, 
-                        sucursal_nombre = :sucursal_nombre, 
-                        area = :area,
-                        vacante_id = :vacante_id,
-                        vacante_nombre = :vacante_nombre,
-                        registro_paso = :registro_paso,
-                        nombre = :nombre,
-                        edad = :edad,
-                        experiencia = :experiencia,
-                        email = :email,
-                        updated_at = NOW()
-                    WHERE telefono = :telefono";
+            file_put_contents("whatsapp_log.txt", "🔄 Actualizando registro existente para: $telefono\n", FILE_APPEND);
+            
+            // Construir dinámicamente la consulta UPDATE
+            $sql = "UPDATE usuarios_historial SET updated_at = NOW()";
+            $params = [":telefono" => $telefono];
+            
+            foreach ($datos as $campo => $valor) {
+                if ($campo != 'id' && $campo != 'telefono' && $campo != 'created_at' && $campo != 'updated_at') {
+                    $sql .= ", $campo = :$campo";
+                    $params[":$campo"] = $valor;
+                }
+            }
+            
+            $sql .= " WHERE telefono = :telefono";
         } else {
-            $sql = "INSERT INTO usuarios_historial (telefono, estado, sucursal, sucursal_nombre, area, vacante_id, vacante_nombre, registro_paso, nombre, edad, experiencia, email)
-                    VALUES (:telefono, :estado, :sucursal, :sucursal_nombre, :area, :vacante_id, :vacante_nombre, :registro_paso, :nombre, :edad, :experiencia, :email)";
+            file_put_contents("whatsapp_log.txt", "➕ Creando nuevo registro para: $telefono\n", FILE_APPEND);
+            
+            // Construir dinámicamente la consulta INSERT
+            $campos = ["telefono"];
+            $valores = [":telefono"];
+            $params = [":telefono" => $telefono];
+            
+            foreach ($datos as $campo => $valor) {
+                if ($campo != 'id' && $campo != 'telefono' && $campo != 'created_at' && $campo != 'updated_at') {
+                    $campos[] = $campo;
+                    $valores[] = ":$campo";
+                    $params[":$campo"] = $valor;
+                }
+            }
+            
+            $sql = "INSERT INTO usuarios_historial (" . implode(", ", $campos) . ") 
+                   VALUES (" . implode(", ", $valores) . ")";
         }
 
         $stmt = $pdo->prepare($sql);
-        $params = [
-            ":telefono" => $telefono,
-            ":estado" => $datos['estado'] ?? null,
-            ":sucursal" => $datos['sucursal'] ?? null,
-            ":sucursal_nombre" => $datos['sucursal_nombre'] ?? null,
-            ":area" => $datos['area'] ?? null,
-            ":vacante_id" => $datos['vacante_id'] ?? null,
-            ":vacante_nombre" => $datos['vacante_nombre'] ?? null,
-            ":registro_paso" => $datos['registro_paso'] ?? null,
-            ":nombre" => $datos['nombre'] ?? null,
-            ":edad" => $datos['edad'] ?? null,
-            ":experiencia" => $datos['experiencia'] ?? null,
-            ":email" => $datos['email'] ?? null
-        ];
         $stmt->execute($params);
 
         file_put_contents("whatsapp_log.txt", "✅ Historial guardado en BD para $telefono: " . json_encode($datos) . "\n", FILE_APPEND);
         return true;
     } catch (PDOException $e) {
-        file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error en guardarHistorialUsuario: " . $e->getMessage() . "\n", FILE_APPEND);
+        file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error en guardarHistorialUsuario: " . $e->getMessage() . " | SQL: $sql | Params: " . json_encode($params) . "\n", FILE_APPEND);
         return false;
     }
 }
