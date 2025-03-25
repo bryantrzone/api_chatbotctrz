@@ -896,7 +896,7 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         // Guardar mensaje en el historial
         guardarMensajeChat($phone_number, null, 'respuesta', "Menú principal mostrado", "menu_principal");
     }
-    
+
     elseif ($estado === "seleccion_area" || $estado === "mostrar_vacantes") {
         // Este bloque se ejecuta SOLO para áreas de trabajo reales, no para botones tipo "ver_detalles" o "postularme"
         // Verificar que no es una acción de botón especial
@@ -944,52 +944,7 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
                 ["id" => "ver_detalles_{$v['id']}", "title" => "Ver más detalles"]
             ]);
         }
-    }
-
-    // Manejador para el botón "Seleccionar" (similar a "Postularme")
-    elseif (strpos($message_text, "seleccionar_") === 0) {
-        // Extraer el ID de la vacante
-        $vacante_id = intval(str_replace("seleccionar_", "", $message_text));
-        file_put_contents("whatsapp_log.txt", "🎯 Usuario seleccionó la vacante ID: $vacante_id\n", FILE_APPEND);
-
-        // Verificar que la vacante sigue existiendo y activa
-        $stmt = $pdo->prepare("SELECT nombre, sucursal, area FROM vacantes WHERE id = ? AND status = 'activo'");
-        $stmt->execute([$vacante_id]);
-        $vacante = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($vacante) {
-            // Actualizar el estado del usuario
-            $historial = cargarHistorialUsuario($phone_number);
-            $historial['estado'] = 'registro_datos';
-            $historial['registro_paso'] = 'inicio';
-            $historial['vacante_id'] = $vacante_id;
-            $historial['vacante_nombre'] = $vacante['nombre'];
-            $historial['sucursal_nombre'] = $vacante['sucursal'];
-            $historial['area'] = $vacante['area'];
-            guardarHistorialUsuario($phone_number, $historial);
-            
-            // Mensaje para iniciar el proceso de postulación
-            $mensaje = "🎯 *¡Excelente elección!*\n\n";
-            $mensaje .= "Estás a punto de postularte para: *{$vacante['nombre']}*\n";
-            $mensaje .= "En la sucursal: *{$vacante['sucursal']}*\n\n";
-            $mensaje .= "Para continuar con tu postulación, necesito algunos datos básicos.\n\n";
-            $mensaje .= "📝 Por favor, envíame tu *nombre completo*:";
-            
-            enviarMensajeTexto($phone_number, $mensaje);
-            
-            // Guardar en el historial de chat
-            guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-        } else {
-            // Si la vacante ya no está disponible
-            enviarMensajeTexto($phone_number, "⚠️ Lo siento, esta vacante ya no está disponible. ¿Te gustaría ver otras opciones?");
-            
-            // Ofrecer volver a ver vacantes
-            enviarMensajeConBotones($phone_number, "Puedo mostrarte otras vacantes disponibles:", [
-                ["id" => "ver_otra", "title" => "Ver otras vacantes"],
-                ["id" => "menu_principal", "title" => "Menú principal"]
-            ]);
-        }
-    }
+    }    
 
     // Si ninguno de los bloques anteriores manejó el mensaje
     else {
