@@ -30,12 +30,12 @@ file_put_contents("whatsapp_log.txt", "📩 Mensaje recibido de $phone_number: '
 
 // **Verificar que el mensaje es válido**
 // if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
-if (isset($data['entry'][0]['changes'][0]['value']['messages'][0]['type'])) {
+if (isset($input['entry'][0]['changes'][0]['value']['messages'][0]['type'])) {
 
     $message_data = $input['entry'][0]['changes'][0]['value']['messages'][0];
     // $phone_number = corregirFormatoTelefono($message_data['from']); // Número del usuario
-    $message_type = $data['entry'][0]['changes'][0]['value']['messages'][0]['type'];
-    $phone_number = $data['entry'][0]['changes'][0]['value']['messages'][0]['from'];
+    $message_type = $input['entry'][0]['changes'][0]['value']['messages'][0]['type'];
+    $phone_number = $input['entry'][0]['changes'][0]['value']['messages'][0]['from'];
 
     // Verificar el tipo de mensaje
     if ($message_type === 'document' || $message_type === 'image') {
@@ -46,9 +46,9 @@ if (isset($data['entry'][0]['changes'][0]['value']['messages'][0]['type'])) {
         if ($estado === 'registro_datos' && $historial['registro_paso'] === 'completo') {
             // Es un documento
             if ($message_type === 'document') {
-                $media_id = $data['entry'][0]['changes'][0]['value']['messages'][0]['document']['id'];
-                $file_name = $data['entry'][0]['changes'][0]['value']['messages'][0]['document']['filename'];
-                $mime_type = $data['entry'][0]['changes'][0]['value']['messages'][0]['document']['mime_type'];
+                $media_id = $input['entry'][0]['changes'][0]['value']['messages'][0]['document']['id'];
+                $file_name = $input['entry'][0]['changes'][0]['value']['messages'][0]['document']['filename'];
+                $mime_type = $input['entry'][0]['changes'][0]['value']['messages'][0]['document']['mime_type'];
                 
                 // Verificar tipos de archivo permitidos
                 $allowed_mime_types = [
@@ -65,8 +65,8 @@ if (isset($data['entry'][0]['changes'][0]['value']['messages'][0]['type'])) {
             }
             // Es una imagen
             else if ($message_type === 'image') {
-                $media_id = $data['entry'][0]['changes'][0]['value']['messages'][0]['image']['id'];
-                $mime_type = $data['entry'][0]['changes'][0]['value']['messages'][0]['image']['mime_type'];
+                $media_id = $input['entry'][0]['changes'][0]['value']['messages'][0]['image']['id'];
+                $mime_type = $input['entry'][0]['changes'][0]['value']['messages'][0]['image']['mime_type'];
                 $file_name = "imagen_cv_" . time() . ".jpg"; // Generamos un nombre para la imagen
                 
                 procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $historial);
