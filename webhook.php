@@ -468,6 +468,141 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     // **Guardar logs del mensaje recibido**
     file_put_contents("whatsapp_log.txt", "Número: $phone_number, Mensaje: $message_text, Estado actual: $estado\n", FILE_APPEND);
 
+
+    if ($estado === "registro_datos") {
+        // Verificar en qué paso del registro estamos
+        $historial = cargarHistorialUsuario($phone_number);
+        $paso = $historial['registro_paso'] ?? 'inicio';
+        
+        file_put_contents("whatsapp_log.txt", "👤 Procesando registro en paso: $paso - Mensaje: $message_text\n", FILE_APPEND);
+        
+        switch ($paso) {
+            case 'inicio':
+                // Ya solicitamos el nombre, procesamos la respuesta
+                $historial['registro_paso'] = 'nombre';
+                $historial['nombre'] = $mensaje_original;
+                guardarHistorialUsuario($phone_number, $historial);
+                
+                // Solicitar la edad
+                $mensaje = "Gracias *{$mensaje_original}*.\n\n¿Cuál es tu edad?";
+                enviarMensajeTexto($phone_number, $mensaje);
+                guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                break;
+                
+            case 'nombre':
+                // Procesamos la edad
+                if (is_numeric($message_text) && intval($message_text) >= 18 && intval($message_text) <= 70) {
+                    $historial['registro_paso'] = 'edad';
+                    $historial['edad'] = intval($message_text);
+                    guardarHistorialUsuario($phone_number, $historial);
+                    
+                    // Solicitar experiencia
+                    $mensaje = "Perfecto.\n\n¿Cuál es tu experiencia relacionada con el puesto? Si no tienes experiencia previa, puedes escribir 'Sin experiencia'.";
+                    enviarMensajeTexto($phone_number, $mensaje);
+                    guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                } else {
+                    $mensaje = "⚠️ Por favor, ingresa una edad válida entre 18 y 70 años.";
+                    enviarMensajeTexto($phone_number, $mensaje);
+                    guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                }
+                break;
+                
+            case 'edad':
+                // Procesamos la experiencia
+                $historial['registro_paso'] = 'experiencia';
+                $historial['experiencia'] = $mensaje_original;
+                guardarHistorialUsuario($phone_number, $historial);
+                
+                // Solicitar email
+                $mensaje = "Excelente. Por último, necesito tu correo electrónico para que nuestro equipo de reclutamiento pueda contactarte:";
+                enviarMensajeTexto($phone_number, $mensaje);
+                guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                break;
+                
+            case 'experiencia':
+                // Procesamos el email
+                if (filter_var($message_text, FILTER_VALIDATE_EMAIL)) {
+                    $historial['registro_paso'] = 'completo';
+                    $historial['email'] = $message_text;
+                    guardarHistorialUsuario($phone_number, $historial);
+                    
+                    // Guardar la postulación en la base de datos
+                    try {
+                        $stmt = $pdo->prepare("INSERT INTO postulaciones 
+                            (telefono, nombre, edad, experiencia, email, vacante_id, fecha_postulacion, status) 
+                            VALUES (?, ?, ?, ?, ?, ?, NOW(), 'pendiente')");
+                        
+                        $stmt->execute([
+                            $phone_number,
+                            $historial['nombre'],
+                            $historial['edad'],
+                            $historial['experiencia'],
+                            $historial['email'],
+                            $historial['vacante_id']
+                        ]);
+                        
+                        // Mensaje de confirmación con datos del candidato
+                        $mensaje = "🎉 *¡Felicidades! Tu postulación ha sido registrada exitosamente*\n\n";
+                        $mensaje .= "📝 *Resumen de tu postulación:*\n";
+                        $mensaje .= "👤 *Nombre:* {$historial['nombre']}\n";
+                        $mensaje .= "📧 *Email:* {$historial['email']}\n";
+                        $mensaje .= "📢 *Vacante:* {$historial['vacante_nombre']}\n";
+                        $mensaje .= "📍 *Sucursal:* {$historial['sucursal_nombre']}\n\n";
+                        $mensaje .= "Nuestro equipo de recursos humanos revisará tu información y se pondrá en contacto contigo en un máximo de 3 días hábiles a través del correo proporcionado.\n\n";
+                        $mensaje .= "Si tienes alguna duda adicional, no dudes en escribirnos.";
+                        
+                        // Enviar confirmación y opciones para continuar
+                        enviarMensajeTexto($phone_number, $mensaje);
+                        guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                        
+                        // Pequeña pausa para no saturar de mensajes
+                        sleep(1);
+                        
+                        // Ofrecer opciones para continuar
+                        enviarMensajeConBotones($phone_number, "¿Qué te gustaría hacer ahora?", [
+                            ["id" => "ver_otra", "title" => "Ver otras vacantes"],
+                            ["id" => "menu_principal", "title" => "Volver al menú"]
+                        ]);
+                        
+                        // Resetear el estado para permitir otras operaciones
+                        $historial['estado'] = 'postulacion_completada';
+                        guardarHistorialUsuario($phone_number, $historial);
+                        
+                    } catch (PDOException $e) {
+                        file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error al guardar postulación: " . $e->getMessage() . "\n", FILE_APPEND);
+                        $mensaje = "❌ Lo sentimos, hubo un error al procesar tu postulación. Por favor, intenta nuevamente más tarde o comunícate directamente con nuestra área de recursos humanos.";
+                        enviarMensajeTexto($phone_number, $mensaje);
+                        guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                    }
+                } else {
+                    $mensaje = "⚠️ El correo electrónico ingresado no es válido. Por favor, ingresa un correo electrónico correcto.";
+                    enviarMensajeTexto($phone_number, $mensaje);
+                    guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                }
+                break;
+                
+            case 'completo':
+                // Si el usuario escribe algo después de completar el registro
+                $mensaje = "Ya has completado tu postulación. ¿Qué te gustaría hacer ahora?";
+                enviarMensajeConBotones($phone_number, $mensaje, [
+                    ["id" => "ver_otra", "title" => "Ver otras vacantes"],
+                    ["id" => "menu_principal", "title" => "Volver al menú"]
+                ]);
+                guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                break;
+                
+            default:
+                // Si hay algún problema con el estado
+                $mensaje = "Parece que hubo un problema con tu registro. Por favor, intenta nuevamente desde el principio escribiendo 'Hola'.";
+                enviarMensajeTexto($phone_number, $mensaje);
+                guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                break;
+        }
+        
+        // *** Importante: Retornar después de procesar el registro para evitar que se ejecuten los demás bloques ***
+        return;
+    }
+
     // **IMPORTANTE: Verificar primero si es una acción de botón para ver detalles o postularse**
     if (strpos($message_text, "ver_detalles_") === 0) {
         // Extraer el ID de la vacante del mensaje
@@ -742,137 +877,6 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         }
     }
     
-    // Manejo del flujo de registro de datos del candidato
-    elseif ($estado === "registro_datos") {
-        // Verificar en qué paso del registro estamos
-        $historial = cargarHistorialUsuario($phone_number);
-        $paso = $historial['registro_paso'] ?? 'inicio';
-        
-        file_put_contents("whatsapp_log.txt", "👤 Procesando registro en paso: $paso - Mensaje: $message_text\n", FILE_APPEND);
-        
-        switch ($paso) {
-            case 'inicio':
-                // Ya solicitamos el nombre, procesamos la respuesta
-                $historial['registro_paso'] = 'nombre';
-                $historial['nombre'] = $mensaje_original;
-                guardarHistorialUsuario($phone_number, $historial);
-                
-                // Solicitar la edad
-                $mensaje = "Gracias *{$mensaje_original}*.\n\n¿Cuál es tu edad?";
-                enviarMensajeTexto($phone_number, $mensaje);
-                guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                break;
-                
-            case 'nombre':
-                // Procesamos la edad
-                if (is_numeric($message_text) && intval($message_text) >= 18 && intval($message_text) <= 70) {
-                    $historial['registro_paso'] = 'edad';
-                    $historial['edad'] = intval($message_text);
-                    guardarHistorialUsuario($phone_number, $historial);
-                    
-                    // Solicitar experiencia
-                    $mensaje = "Perfecto.\n\n¿Cuál es tu experiencia relacionada con el puesto? Si no tienes experiencia previa, puedes escribir 'Sin experiencia'.";
-                    enviarMensajeTexto($phone_number, $mensaje);
-                    guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                } else {
-                    $mensaje = "⚠️ Por favor, ingresa una edad válida entre 18 y 70 años.";
-                    enviarMensajeTexto($phone_number, $mensaje);
-                    guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                }
-                break;
-                
-            case 'edad':
-                // Procesamos la experiencia
-                $historial['registro_paso'] = 'experiencia';
-                $historial['experiencia'] = $mensaje_original;
-                guardarHistorialUsuario($phone_number, $historial);
-                
-                // Solicitar email
-                $mensaje = "Excelente. Por último, necesito tu correo electrónico para que nuestro equipo de reclutamiento pueda contactarte:";
-                enviarMensajeTexto($phone_number, $mensaje);
-                guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                break;
-                
-            case 'experiencia':
-                // Procesamos el email
-                if (filter_var($message_text, FILTER_VALIDATE_EMAIL)) {
-                    $historial['registro_paso'] = 'completo';
-                    $historial['email'] = $message_text;
-                    guardarHistorialUsuario($phone_number, $historial);
-                    
-                    // Guardar la postulación en la base de datos
-                    try {
-                        $stmt = $pdo->prepare("INSERT INTO postulaciones 
-                            (telefono, nombre, edad, experiencia, email, vacante_id, fecha_postulacion, status) 
-                            VALUES (?, ?, ?, ?, ?, ?, NOW(), 'pendiente')");
-                        
-                        $stmt->execute([
-                            $phone_number,
-                            $historial['nombre'],
-                            $historial['edad'],
-                            $historial['experiencia'],
-                            $historial['email'],
-                            $historial['vacante_id']
-                        ]);
-                        
-                        // Mensaje de confirmación con datos del candidato
-                        $mensaje = "🎉 *¡Felicidades! Tu postulación ha sido registrada exitosamente*\n\n";
-                        $mensaje .= "📝 *Resumen de tu postulación:*\n";
-                        $mensaje .= "👤 *Nombre:* {$historial['nombre']}\n";
-                        $mensaje .= "📧 *Email:* {$historial['email']}\n";
-                        $mensaje .= "📢 *Vacante:* {$historial['vacante_nombre']}\n";
-                        $mensaje .= "📍 *Sucursal:* {$historial['sucursal_nombre']}\n\n";
-                        $mensaje .= "Nuestro equipo de recursos humanos revisará tu información y se pondrá en contacto contigo en un máximo de 3 días hábiles a través del correo proporcionado.\n\n";
-                        $mensaje .= "Si tienes alguna duda adicional, no dudes en escribirnos.";
-                        
-                        // Enviar confirmación y opciones para continuar
-                        enviarMensajeTexto($phone_number, $mensaje);
-                        guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                        
-                        // Pequeña pausa para no saturar de mensajes
-                        sleep(1);
-                        
-                        // Ofrecer opciones para continuar
-                        enviarMensajeConBotones($phone_number, "¿Qué te gustaría hacer ahora?", [
-                            ["id" => "ver_otra", "title" => "Ver otras vacantes"],
-                            ["id" => "menu_principal", "title" => "Volver al menú"]
-                        ]);
-                        
-                        // Resetear el estado para permitir otras operaciones
-                        $historial['estado'] = 'postulacion_completada';
-                        guardarHistorialUsuario($phone_number, $historial);
-                        
-                    } catch (PDOException $e) {
-                        file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error al guardar postulación: " . $e->getMessage() . "\n", FILE_APPEND);
-                        $mensaje = "❌ Lo sentimos, hubo un error al procesar tu postulación. Por favor, intenta nuevamente más tarde o comunícate directamente con nuestra área de recursos humanos.";
-                        enviarMensajeTexto($phone_number, $mensaje);
-                        guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                    }
-                } else {
-                    $mensaje = "⚠️ El correo electrónico ingresado no es válido. Por favor, ingresa un correo electrónico correcto.";
-                    enviarMensajeTexto($phone_number, $mensaje);
-                    guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                }
-                break;
-                
-            case 'completo':
-                // Si el usuario escribe algo después de completar el registro
-                $mensaje = "Ya has completado tu postulación. ¿Qué te gustaría hacer ahora?";
-                enviarMensajeConBotones($phone_number, $mensaje, [
-                    ["id" => "ver_otra", "title" => "Ver otras vacantes"],
-                    ["id" => "menu_principal", "title" => "Volver al menú"]
-                ]);
-                guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                break;
-                
-            default:
-                // Si hay algún problema con el estado
-                $mensaje = "Parece que hubo un problema con tu registro. Por favor, intenta nuevamente desde el principio escribiendo 'Hola'.";
-                enviarMensajeTexto($phone_number, $mensaje);
-                guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                break;
-        }
-    }
     // Manejador para el botón "Menú principal"
     elseif ($message_text === "menu_principal" || $message_text === "menu") {
         // Resetear el estado del usuario
@@ -897,54 +901,7 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         guardarMensajeChat($phone_number, null, 'respuesta', "Menú principal mostrado", "menu_principal");
     }
 
-    elseif ($estado === "seleccion_area" || $estado === "mostrar_vacantes") {
-        // Este bloque se ejecuta SOLO para áreas de trabajo reales, no para botones tipo "ver_detalles" o "postularme"
-        // Verificar que no es una acción de botón especial
-        if (strpos($message_text, "ver_detalles_") === 0 || strpos($message_text, "postularme_") === 0 || $message_text === "ver_otra") {
-            // Ya manejado en los bloques anteriores
-            return;
-        }
-
-        $area = ucwords(str_replace('_', ' ', strtolower($message_text))); // Ejemplo: ventas → Ventas
-        $historial = cargarHistorialUsuario($phone_number);
-        $sucursal_nombre = $historial['sucursal_nombre'] ?? null;
-        
-        file_put_contents("whatsapp_log.txt", "🔍 Buscando vacantes para área: $area en sucursal: $sucursal_nombre\n", FILE_APPEND);
-
-        if (!$sucursal_nombre) {
-            enviarMensajeTexto($phone_number, "⚠️ Hubo un error al recuperar tu sucursal. Por favor, si quieres comenzar de nuevo, escribe 'Menú principal'.");
-            return;
-        }
-
-        // Guardar el área seleccionada en el historial
-        $historial['estado'] = 'mostrar_vacantes';
-        $historial['area'] = $area;
-        guardarHistorialUsuario($phone_number, $historial);
     
-        // Consultar vacantes activas en la sucursal y área seleccionada
-        $stmt = $pdo->prepare("SELECT id, nombre, descripcion, horario FROM vacantes WHERE status = 'activo' AND sucursal = ? AND area = ?");
-        $stmt->execute([$sucursal_nombre, $area]);
-        $vacantes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        if (count($vacantes) === 0) {
-            enviarMensajeTexto($phone_number, "😕 No hay vacantes activas en *$area* en *$sucursal_nombre*.");
-            return;
-        }
-    
-        // Enviar cada vacante en un mensaje separado con botones
-        foreach ($vacantes as $v) {
-            $mensaje = "📌 *Vacante Disponible:*\n\n"
-                    . "📢 *{$v['nombre']}*\n"
-                    . "📍 *Sucursal:* $sucursal_nombre\n"
-                    . "📝 *Descripción:* {$v['descripcion']}\n"
-                    . "⏰ *Horario:* {$v['horario']}\n";
-
-            enviarMensajeConBotones($phone_number, $mensaje, [
-                ["id" => "seleccionar_{$v['id']}", "title" => "Seleccionar"],
-                ["id" => "ver_detalles_{$v['id']}", "title" => "Ver más detalles"]
-            ]);
-        }
-    }    
 
     // Si ninguno de los bloques anteriores manejó el mensaje
     else {
