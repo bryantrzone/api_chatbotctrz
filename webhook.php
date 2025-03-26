@@ -1067,60 +1067,46 @@ function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $hist
         mkdir($upload_dir, 0755, true);
     }
 
+    $file_extension = pathinfo($file_name, PATHINFO_EXTENSION);
+    if (empty($file_extension)) {
+        switch ($mime_type) {
+            case 'application/pdf': $file_extension = 'pdf'; break;
+            case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': $file_extension = 'docx'; break;
+            case 'application/msword': $file_extension = 'doc'; break;
+            case 'image/jpeg':
+            case 'image/jpg': $file_extension = 'jpg'; break;
+            case 'image/png': $file_extension = 'png'; break;
+            default: $file_extension = 'bin';
+        }
+    }
+
+    $unique_file_name = uniqid('cv_' . $phone_number . '_') . '.' . $file_extension;
+    $file_path = $upload_dir . $unique_file_name;
+
     $file_content = descargarMediaWhatsApp($media_id);
 
-    if ($file_content) {
-        // Verificación de formato del archivo
-        $first_bytes = substr($file_content, 0, 9);
-        $is_valid_file = true;
-        $formato = 'desconocido';
-
-        if (strpos($file_content, '%PDF') === 0) {
-            $formato = 'PDF';
-        } elseif (strpos($file_content, "\xFF\xD8\xFF") === 0) {
-            $formato = 'JPEG';
-        } elseif (strpos($file_content, "\x89PNG") === 0) {
-            $formato = 'PNG';
-        } elseif (strpos($file_content, 'PK') === 0 && strpos($file_content, '[Content_Types].xml') !== false) {
-            $formato = 'DOCX';
-        } elseif (substr($first_bytes, 0, 9) === '<!DOCTYPE' || substr($first_bytes, 0, 1) === '{') {
-            $is_valid_file = false;
-            $formato = 'error-html';
+    if ($file_content && strlen($file_content) > 0) {
+        $magic = bin2hex(substr($file_content, 0, 4));
+        $is_valid = false;
+        switch (strtolower($file_extension)) {
+            case 'pdf': $is_valid = $magic === '25504446'; break; // %PDF
+            case 'jpg':
+            case 'jpeg': $is_valid = in_array($magic, ['ffd8ffe0', 'ffd8ffe1', 'ffd8ffe2']); break;
+            case 'png': $is_valid = $magic === '89504e47'; break;
+            case 'docx': $is_valid = substr($magic, 0, 4) === '504b03'; break; // ZIP file (docx)
         }
 
-        file_put_contents("whatsapp_log.txt", "🔍 Verificación de formato - Detectado: $formato\n", FILE_APPEND);
-
-        if (!$is_valid_file) {
+        if (!$is_valid) {
+            file_put_contents("whatsapp_log.txt", "🔍 Verificación de formato - Detectado: error-html\n", FILE_APPEND);
             enviarMensajeTexto($phone_number, "❌ El archivo que enviaste no es válido o no pudimos procesarlo. Por favor, intenta enviarlo nuevamente en formato PDF, JPG o DOCX.");
             return;
         }
 
-        // Definir extensión según formato detectado
-        switch ($formato) {
-            case 'PDF':  $ext = 'pdf'; break;
-            case 'JPEG': $ext = 'jpg'; break;
-            case 'PNG':  $ext = 'png'; break;
-            case 'DOCX': $ext = 'docx'; break;
-            default:     $ext = 'bin'; break;
-        }
-
-        $unique_file_name = uniqid("cv_{$phone_number}_") . '.' . $ext;
-        $file_path = $upload_dir . $unique_file_name;
-
-        $bytes_written = file_put_contents($file_path, $file_content);
-
-        if ($bytes_written === false || $bytes_written === 0) {
-            file_put_contents("whatsapp_log.txt", "❌ Error al guardar el archivo: $file_path\n", FILE_APPEND);
-            enviarMensajeTexto($phone_number, "❌ Hubo un problema al guardar tu documento. Por favor, intenta nuevamente.");
-            return;
-        }
-
+        file_put_contents($file_path, $file_content);
         chmod($file_path, 0644);
-        $file_size = filesize($file_path);
-        file_put_contents("whatsapp_log.txt", "✅ Archivo guardado, tamaño: $file_size bytes\n", FILE_APPEND);
+        file_put_contents("whatsapp_log.txt", "✅ Archivo guardado, tamaño: " . strlen($file_content) . " bytes\n", FILE_APPEND);
 
         try {
-            // Verifica si ya hay una postulación
             $stmt = $pdo->prepare("SELECT id FROM postulaciones WHERE telefono = ? AND vacante_id = ? ORDER BY id DESC LIMIT 1");
             $stmt->execute([$phone_number, $historial['vacante_id']]);
             $postulacion = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1132,7 +1118,6 @@ function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $hist
                 $stmt = $pdo->prepare("INSERT INTO postulaciones 
                     (telefono, nombre, edad, experiencia, email, vacante_id, cv_path, fecha_postulacion, status) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 'pendiente')");
-
                 $stmt->execute([
                     $phone_number,
                     $historial['nombre'],
@@ -1149,8 +1134,7 @@ function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $hist
 
             $mensaje = "✅ *¡Tu CV ha sido recibido correctamente!*\n\n";
             $mensaje .= "Hemos adjuntado tu documento a tu postulación para *{$historial['vacante_nombre']}*.\n\n";
-            $mensaje .= "Nuestro equipo de recursos humanos se pondrá en contacto contigo pronto para continuar con el proceso.";
-
+            $mensaje .= "Nuestro equipo de recursos humanos se pondrá en contacto contigo pronto.";
             enviarMensajeTexto($phone_number, $mensaje);
             guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
 
@@ -1162,13 +1146,13 @@ function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $hist
 
         } catch (PDOException $e) {
             file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error al guardar CV: " . $e->getMessage() . "\n", FILE_APPEND);
-            enviarMensajeTexto($phone_number, "❌ Hubo un error al procesar tu documento. Por favor, intenta nuevamente o contacta a soporte.");
+            enviarMensajeTexto($phone_number, "❌ Hubo un error al procesar tu documento. Por favor, intenta nuevamente.");
         }
-
     } else {
         enviarMensajeTexto($phone_number, "❌ No pudimos descargar tu documento. Por favor, intenta enviarlo nuevamente.");
     }
 }
+
 
 
 function descargarMediaConCURL($url, $token) {
@@ -1202,129 +1186,64 @@ function descargarMediaConFileGetContents($url, $token) {
 
 function descargarMediaWhatsApp($media_id) {
     global $config;
-    
     $token = $config['ACCESS_TOKEN'];
-    
-    // URL directa para descargar el archivo usando el endpoint /media
-    $direct_url = "https://graph.facebook.com/v18.0/{$media_id}/media";
-    
-    file_put_contents("whatsapp_log.txt", "🔄 Usando endpoint directo para media ID: $media_id\n", FILE_APPEND);
-    file_put_contents("whatsapp_log.txt", "🔗 URL: $direct_url\n", FILE_APPEND);
-    
-    // Configuración de cURL para hacer la descarga directa
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $direct_url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_BINARYTRANSFER, true); // Importante para archivos binarios
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer $token"]);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
 
-    
-    
-    // Ejecutar la solicitud
-    $file_content = curl_exec($ch);
-    $file_error = curl_error($ch);
-    $file_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-    
-    // Cerrar la conexión cURL
-    curl_close($ch);
-    
-    // Registrar información para depuración
-    file_put_contents("whatsapp_log.txt", "📊 Respuesta: status $file_status, tipo $content_type, tamaño " . strlen($file_content) . " bytes, error: $file_error\n", FILE_APPEND);
-    
-    // Verificar si la respuesta es un error en formato JSON
-    $is_json_error = false;
-    if ($content_type == "application/json") {
-        $json_data = json_decode($file_content, true);
-        if (isset($json_data['error'])) {
-            $is_json_error = true;
-            file_put_contents("whatsapp_log.txt", "❌ Error en respuesta JSON: " . json_encode($json_data['error']) . "\n", FILE_APPEND);
-        }
-    }
-    
-    // Devolver el contenido solo si la descarga fue exitosa y no es un error JSON
-    if ($file_status == 200 && !empty($file_content) && !$is_json_error) {
-        return $file_content;
-    }
-    
-    // Si falló el método directo, intentar el método en dos pasos
-    file_put_contents("whatsapp_log.txt", "⚠️ El método directo falló, intentando método en dos pasos\n", FILE_APPEND);
-    
-    // Paso 1: Obtener la URL del archivo
+    file_put_contents("whatsapp_log.txt", "\n\n📄 Iniciando descarga de media ID: $media_id\n", FILE_APPEND);
+
+    // 1️⃣ Paso 1: Obtener URL del archivo
     $url = "https://graph.facebook.com/v18.0/{$media_id}";
-    
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
+    $headers = ["Authorization: Bearer $token"];
+
+    $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer $token"]);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    
     $response = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    
-    // Verificar respuesta
-    if ($status != 200) {
-        file_put_contents("whatsapp_log.txt", "❌ Error obteniendo datos del archivo: $status\n", FILE_APPEND);
-        return false;
-    }
-    
+
+    file_put_contents("whatsapp_log.txt", "🔗 URL de API: $url\n", FILE_APPEND);
+    file_put_contents("whatsapp_log.txt", "📊 Respuesta API WhatsApp: $status - $response\n", FILE_APPEND);
+
+    if ($status !== 200) return false;
+
     $data = json_decode($response, true);
-    if (!isset($data['url'])) {
-        file_put_contents("whatsapp_log.txt", "❌ No se encontró URL en la respuesta\n", FILE_APPEND);
+    if (!isset($data['url'])) return false;
+
+    $download_url = $data['url'];
+    file_put_contents("whatsapp_log.txt", "🔗 URL de descarga directa: $download_url\n", FILE_APPEND);
+
+    // 2️⃣ Paso 2: Descargar el archivo binario
+    $file_ch = curl_init($download_url);
+    curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($file_ch, CURLOPT_TIMEOUT, 60);
+    curl_setopt($file_ch, CURLOPT_SSL_VERIFYPEER, false);
+    $file_content = curl_exec($file_ch);
+    $status = curl_getinfo($file_ch, CURLINFO_HTTP_CODE);
+    $file_error = curl_error($file_ch);
+    curl_close($file_ch);
+
+    file_put_contents("whatsapp_log.txt", "📥 Estado descarga: $status, Tamaño: " . strlen($file_content) . " bytes\n", FILE_APPEND);
+
+    if ($status !== 200 || empty($file_content)) return false;
+
+    // 3️⃣ Validar si el archivo descargado es realmente binario
+    $first_bytes = bin2hex(substr($file_content, 0, 10));
+    $first_clean = trim(substr($file_content, 0, 100));
+
+    file_put_contents("whatsapp_log.txt", "🔍 Primeros bytes (hex): $first_bytes\n", FILE_APPEND);
+
+    if (
+        stripos($first_clean, '<!DOCTYPE') !== false ||
+        stripos($first_clean, '<html') !== false ||
+        $first_clean[0] === '{'
+    ) {
+        file_put_contents("whatsapp_log.txt", "⚠️ Archivo no válido detectado (HTML o JSON)\n", FILE_APPEND);
         return false;
     }
-    
-    $file_url = $data['url'];
-    file_put_contents("whatsapp_log.txt", "🔗 URL recibida: $file_url\n", FILE_APPEND);
-    
-    // Descargar ahora con curl, sin enviar el token al servidor lookaside.fbsbx.com
-    $file_ch = curl_init();
-    curl_setopt($file_ch, CURLOPT_URL, $file_url);
-    curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($file_ch, CURLOPT_BINARYTRANSFER, true); // Importante para archivos binarios
-    // IMPORTANTE: NO enviar header de autorización para lookaside.fbsbx.com
-    curl_setopt($file_ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($file_ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($file_ch, CURLOPT_TIMEOUT, 120);
-    
-    $file_content = curl_exec($file_ch);
-    $file_error = curl_error($file_ch);
-    $file_status = curl_getinfo($file_ch, CURLINFO_HTTP_CODE);
-    curl_close($file_ch);
-    
-    file_put_contents("whatsapp_log.txt", "📊 Descarga: status $file_status, tamaño " . strlen($file_content) . " bytes, error: $file_error\n", FILE_APPEND);
-    
-    if ($file_status == 200 && !empty($file_content)) {
 
-        // Dentro de descargarMediaWhatsApp(), justo antes de retornar el contenido exitoso:
-
-        // Verificar firma de bytes para detectar archivo válido
-        $first_bytes = substr($file_content, 0, 8);
-        $is_pdf = (substr($file_content, 0, 4) === '%PDF');
-        $is_jpeg = (substr($file_content, 0, 2) === "\xFF\xD8");
-        $is_png = (substr($file_content, 0, 8) === "\x89PNG\r\n\x1A\n");
-        $is_docx = (substr($file_content, 0, 4) === 'PK' . chr(3) . chr(4));
-
-        file_put_contents("whatsapp_log.txt", "🔍 Verificación de formato - PDF: " . ($is_pdf ? "Sí" : "No") . 
-            ", JPEG: " . ($is_jpeg ? "Sí" : "No") . 
-            ", PNG: " . ($is_png ? "Sí" : "No") . 
-            ", DOCX: " . ($is_docx ? "Sí" : "No") . 
-            ", Primeros bytes (hex): " . bin2hex($first_bytes) . "\n", FILE_APPEND);
-
-        if (!$is_pdf && !$is_jpeg && !$is_png && !$is_docx && strpos($content_type, 'text/html') !== false) {
-            file_put_contents("whatsapp_log.txt", "⚠️ El contenido no parece ser un archivo válido\n", FILE_APPEND);
-            file_put_contents("error_content_sample.txt", substr($file_content, 0, 1000));
-            return false;
-        }
-
-        return $file_content;
-    }
-    
-    file_put_contents("whatsapp_log.txt", "❌ Ambos métodos fallaron para descargar el archivo\n", FILE_APPEND);
-    return false;
+    return $file_content;
 }
+
 ?>
