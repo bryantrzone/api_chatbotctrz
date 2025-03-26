@@ -1167,25 +1167,17 @@ function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $hist
 
 // Función para descargar media de WhatsApp
 function descargarMediaWhatsApp($media_id) {
-
     global $config;
     
-    
-    // Define tu token directamente aquí para probar
-    $token = $config['ACCESS_TOKEN']; // Reemplaza con tu token real
+    $token = $config['ACCESS_TOKEN'];
     
     file_put_contents("whatsapp_log.txt", "🔄 Intentando descargar media ID: $media_id\n", FILE_APPEND);
     file_put_contents("whatsapp_log.txt", "🔑 Usando token: " . substr($token, 0, 10) . "...\n", FILE_APPEND);
     
-    // URL de la API - USAR v18.0 NO v22.0
+    // Primer paso: obtener la URL del media
     $url = "https://graph.facebook.com/v18.0/{$media_id}";
-    $headers = [
-        'Authorization: Bearer ' . $token
-    ];    
+    $headers = ['Authorization: Bearer ' . $token];
     
-    
-    // Registrar para depuración
-    file_put_contents("whatsapp_log.txt", "🔑 Usando token: " . substr($token, 0, 10) . "...\n", FILE_APPEND);
     file_put_contents("whatsapp_log.txt", "🔗 URL solicitada: $url\n", FILE_APPEND);
     file_put_contents("whatsapp_log.txt", "🔤 Headers: " . json_encode($headers) . "\n", FILE_APPEND);
     
@@ -1203,72 +1195,69 @@ function descargarMediaWhatsApp($media_id) {
     
     file_put_contents("whatsapp_log.txt", "📊 Respuesta API WhatsApp: $status - $response\n", FILE_APPEND);
     
-    if ($curl_error) {
-        file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error cURL: " . $curl_error . "\n", FILE_APPEND);
+    if ($curl_error || $status != 200) {
+        file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error cURL o status no 200: " . $curl_error . "\n", FILE_APPEND);
         return false;
     }
     
     $data = json_decode($response, true);
     
-    if (isset($data['error'])) {
-        file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error de API: " . json_encode($data['error']) . "\n", FILE_APPEND);
+    if (!isset($data['url'])) {
+        file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error: No URL en respuesta: " . $response . "\n", FILE_APPEND);
         return false;
     }
     
-    if (isset($data['url'])) {
-        // Registrar información sobre la URL
-        $file_url = $data['url'];
-        file_put_contents("whatsapp_log.txt", "🔗 URL de archivo recibida: " . $file_url . "\n", FILE_APPEND);
+    $file_url = $data['url'];
+    file_put_contents("whatsapp_log.txt", "🔗 URL de archivo recibida: " . $file_url . "\n", FILE_APPEND);
+    
+    // Segundo paso: descargar el archivo con los mismos headers de autorización
+    $file_ch = curl_init();
+    curl_setopt($file_ch, CURLOPT_URL, $file_url);
+    curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($file_ch, CURLOPT_HTTPHEADER, $headers); // Usar el mismo token de autorización
+    curl_setopt($file_ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($file_ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($file_ch, CURLOPT_TIMEOUT, 120);
+    
+    // Para depuración
+    curl_setopt($file_ch, CURLOPT_VERBOSE, true);
+    $verbose = fopen('php://temp', 'w+');
+    curl_setopt($file_ch, CURLOPT_STDERR, $verbose);
+    
+    $file_content = curl_exec($file_ch);
+    $file_error = curl_error($file_ch);
+    $file_status = curl_getinfo($file_ch, CURLINFO_HTTP_CODE);
+    
+    // Registrar información de depuración detallada
+    rewind($verbose);
+    $verboseLog = stream_get_contents($verbose);
+    file_put_contents("curl_debug.txt", date('Y-m-d H:i:s') . " | Curl verbose log: " . $verboseLog . "\n", FILE_APPEND);
+    
+    curl_close($file_ch);
+    
+    file_put_contents("whatsapp_log.txt", "📊 Descarga de archivo: status $file_status, contenido " . strlen($file_content) . " bytes, error: $file_error\n", FILE_APPEND);
+    
+    // Guardar una muestra del contenido para depuración
+    if (!empty($file_content)) {
+        file_put_contents("content_sample.txt", "Primeros 100 bytes: " . bin2hex(substr($file_content, 0, 100)) . "\n", FILE_APPEND);
         
+        // Verificar si es un archivo de imagen válido mediante la firma de bytes
+        $is_jpeg = (substr($file_content, 0, 2) === "\xFF\xD8");
+        $is_png = (substr($file_content, 0, 8) === "\x89PNG\r\n\x1A\n");
+        $is_pdf = (substr($file_content, 0, 4) === "%PDF");
         
-        // Descargar el archivo desde lookaside.fbsbx.com
-        $file_ch = curl_init();
-        curl_setopt($file_ch, CURLOPT_URL, $file_url);
-        curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);
-        // No se necesita token para esta URL
-        curl_setopt($file_ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($file_ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($file_ch, CURLOPT_TIMEOUT, 120);
-
-        $file_content = curl_exec($file_ch);
-        $file_error = curl_error($file_ch);
-        $file_status = curl_getinfo($file_ch, CURLINFO_HTTP_CODE);
-        curl_close($file_ch);       
-                
-        // Leer información de depuración
-        rewind($verbose);
-        $verboseLog = stream_get_contents($verbose);
-        file_put_contents("curl_debug.txt", date('Y-m-d H:i:s') . " | Curl verbose log: " . $verboseLog . "\n", FILE_APPEND);
+        file_put_contents("whatsapp_log.txt", "🔍 Verificación de formato: JPEG: " . ($is_jpeg ? "Sí" : "No") . 
+            ", PNG: " . ($is_png ? "Sí" : "No") . 
+            ", PDF: " . ($is_pdf ? "Sí" : "No") . "\n", FILE_APPEND);
         
-        file_put_contents("whatsapp_log.txt", "📊 Descarga de archivo: status $file_status, contenido " . strlen($file_content) . " bytes, error: $file_error\n", FILE_APPEND);
-        
-        if ($file_error) {
-            file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error descargando archivo: " . $file_error . "\n", FILE_APPEND);
-            return false;
-        }
-        
-        if ($file_status == 200 && !empty($file_content)) {
-            // Verificar que el contenido sea realmente un archivo y no un mensaje de error
-            $is_valid_file = true;
-
-            $first_bytes = substr($file_content, 0, 10);
-            if (stripos($first_bytes, '<!DOCTYPE') !== false || substr($file_content, 0, 1) === '{') {
-                $is_valid_file = false;
-                file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | ⚠️ Contenido recibido parece no ser un archivo válido\nPrimeros bytes: " . bin2hex($first_bytes) . "\n", FILE_APPEND);
-            }
-            
-            if ($file_status == 200 && !empty($file_content) && $is_valid_file) {
-                return $file_content;
-            } else {
-                return false;
-            }
+        // Si tiene un formato válido, retornar el contenido
+        if ($is_jpeg || $is_png || $is_pdf || strlen($file_content) > 1000) {
+            return $file_content;
         } else {
-            file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error: Código de estado $file_status o contenido vacío\n", FILE_APPEND);
-            return false;
+            file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Contenido descargado no parece ser un archivo válido\n", FILE_APPEND);
         }
-    } else {
-        file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error: No se encontró URL en la respuesta\n", FILE_APPEND);
-        return false;
     }
+    
+    return false;
 }
 ?>
