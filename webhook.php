@@ -1103,9 +1103,37 @@ function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $hist
     // Descargar el archivo de WhatsApp
     $file_content = descargarMediaWhatsApp($media_id);
     
-    if ($file_content) {
-        // Guardar el archivo en el servidor
-        file_put_contents($file_path, $file_content);
+    if ($file_content) {       
+        // Guardar el archivo en el servidor (modo binario)
+        if ($file_content) {
+            // Asegurarte que el directorio existe y tiene permisos adecuados
+            if (!is_dir(dirname($file_path))) {
+                mkdir(dirname($file_path), 0755, true);
+            }
+            
+            // Guardar el archivo en modo binario
+            $bytes_written = file_put_contents($file_path, $file_content);
+            
+            // Verificar que se guardó correctamente
+            if ($bytes_written === false || $bytes_written === 0) {
+                file_put_contents("whatsapp_log.txt", "❌ Error al guardar el archivo: $file_path\n", FILE_APPEND);
+                enviarMensajeTexto($phone_number, "❌ Hubo un problema al guardar tu documento. Por favor, intenta nuevamente.");
+                return;
+            }
+            
+            // Verificar tamaño del archivo
+            $file_size = filesize($file_path);
+            file_put_contents("whatsapp_log.txt", "✅ Archivo guardado, tamaño: $file_size bytes\n", FILE_APPEND);
+            
+            if ($file_size < 100) {
+                file_put_contents("whatsapp_log.txt", "⚠️ Archivo guardado tiene tamaño sospechosamente pequeño\n", FILE_APPEND);
+            }
+            
+            // Establecer permisos adecuados
+            chmod($file_path, 0644);
+            
+            // Continuar con el resto del procesamiento...
+        }
         
         // Actualizar la base de datos
         try {
@@ -1196,52 +1224,127 @@ function descargarMediaConFileGetContents($url, $token) {
 
 function descargarMediaWhatsApp($media_id) {
     global $config;
+    
     $token = $config['ACCESS_TOKEN'];
     
-    // Obtener la URL del media
-    $info_url = "https://graph.facebook.com/v18.0/{$media_id}";
-    $response = descargarMediaConCURL($info_url, $token);
-    $data = json_decode($response, true);
+    // URL directa para descargar el archivo usando el endpoint /media
+    $direct_url = "https://graph.facebook.com/v18.0/{$media_id}/media";
     
-    if (!isset($data['url'])) {
+    file_put_contents("whatsapp_log.txt", "🔄 Usando endpoint directo para media ID: $media_id\n", FILE_APPEND);
+    file_put_contents("whatsapp_log.txt", "🔗 URL: $direct_url\n", FILE_APPEND);
+    
+    // Configuración de cURL para hacer la descarga directa
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $direct_url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_BINARYTRANSFER, true); // Importante para archivos binarios
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer $token"]);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+    
+    // Ejecutar la solicitud
+    $file_content = curl_exec($ch);
+    $file_error = curl_error($ch);
+    $file_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    
+    // Cerrar la conexión cURL
+    curl_close($ch);
+    
+    // Registrar información para depuración
+    file_put_contents("whatsapp_log.txt", "📊 Respuesta: status $file_status, tipo $content_type, tamaño " . strlen($file_content) . " bytes, error: $file_error\n", FILE_APPEND);
+    
+    // Verificar si la respuesta es un error en formato JSON
+    $is_json_error = false;
+    if ($content_type == "application/json") {
+        $json_data = json_decode($file_content, true);
+        if (isset($json_data['error'])) {
+            $is_json_error = true;
+            file_put_contents("whatsapp_log.txt", "❌ Error en respuesta JSON: " . json_encode($json_data['error']) . "\n", FILE_APPEND);
+        }
+    }
+    
+    // Devolver el contenido solo si la descarga fue exitosa y no es un error JSON
+    if ($file_status == 200 && !empty($file_content) && !$is_json_error) {
+        return $file_content;
+    }
+    
+    // Si falló el método directo, intentar el método en dos pasos
+    file_put_contents("whatsapp_log.txt", "⚠️ El método directo falló, intentando método en dos pasos\n", FILE_APPEND);
+    
+    // Paso 1: Obtener la URL del archivo
+    $url = "https://graph.facebook.com/v18.0/{$media_id}";
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: Bearer $token"]);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $response = curl_exec($ch);
+    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    // Verificar respuesta
+    if ($status != 200) {
+        file_put_contents("whatsapp_log.txt", "❌ Error obteniendo datos del archivo: $status\n", FILE_APPEND);
         return false;
     }
     
-    // Intentemos guardar y acceder al archivo usando un nombre temporal
-    $temp_file = tempnam(sys_get_temp_dir(), 'whatsapp_media_');
-    
-    // Intentar diferentes métodos
-    $success = false;
-    
-    // Método 1: cURL directo a archivo
-    $ch = curl_init($data['url']);
-    $fp = fopen($temp_file, 'wb');
-    curl_setopt($ch, CURLOPT_FILE, $fp);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    
-    $success = curl_exec($ch);
-    curl_close($ch);
-    fclose($fp);
-    
-    if ($success && filesize($temp_file) > 1000) {
-        return file_get_contents($temp_file);
+    $data = json_decode($response, true);
+    if (!isset($data['url'])) {
+        file_put_contents("whatsapp_log.txt", "❌ No se encontró URL en la respuesta\n", FILE_APPEND);
+        return false;
     }
     
-    // Método 2: file_get_contents
-    $content = @file_get_contents($data['url']);
-    if ($content && strlen($content) > 1000) {
-        return $content;
+    $file_url = $data['url'];
+    file_put_contents("whatsapp_log.txt", "🔗 URL recibida: $file_url\n", FILE_APPEND);
+    
+    // Descargar ahora con curl, sin enviar el token al servidor lookaside.fbsbx.com
+    $file_ch = curl_init();
+    curl_setopt($file_ch, CURLOPT_URL, $file_url);
+    curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($file_ch, CURLOPT_BINARYTRANSFER, true); // Importante para archivos binarios
+    // IMPORTANTE: NO enviar header de autorización para lookaside.fbsbx.com
+    curl_setopt($file_ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($file_ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($file_ch, CURLOPT_TIMEOUT, 120);
+    
+    $file_content = curl_exec($file_ch);
+    $file_error = curl_error($file_ch);
+    $file_status = curl_getinfo($file_ch, CURLINFO_HTTP_CODE);
+    curl_close($file_ch);
+    
+    file_put_contents("whatsapp_log.txt", "📊 Descarga: status $file_status, tamaño " . strlen($file_content) . " bytes, error: $file_error\n", FILE_APPEND);
+    
+    if ($file_status == 200 && !empty($file_content)) {
+
+        // Dentro de descargarMediaWhatsApp(), justo antes de retornar el contenido exitoso:
+
+        // Verificar firma de bytes para detectar archivo válido
+        $first_bytes = substr($file_content, 0, 8);
+        $is_pdf = (substr($file_content, 0, 4) === '%PDF');
+        $is_jpeg = (substr($file_content, 0, 2) === "\xFF\xD8");
+        $is_png = (substr($file_content, 0, 8) === "\x89PNG\r\n\x1A\n");
+        $is_docx = (substr($file_content, 0, 4) === 'PK' . chr(3) . chr(4));
+
+        file_put_contents("whatsapp_log.txt", "🔍 Verificación de formato - PDF: " . ($is_pdf ? "Sí" : "No") . 
+            ", JPEG: " . ($is_jpeg ? "Sí" : "No") . 
+            ", PNG: " . ($is_png ? "Sí" : "No") . 
+            ", DOCX: " . ($is_docx ? "Sí" : "No") . 
+            ", Primeros bytes (hex): " . bin2hex($first_bytes) . "\n", FILE_APPEND);
+
+        if (!$is_pdf && !$is_jpeg && !$is_png && !$is_docx && strpos($content_type, 'text/html') !== false) {
+            file_put_contents("whatsapp_log.txt", "⚠️ El contenido no parece ser un archivo válido\n", FILE_APPEND);
+            file_put_contents("error_content_sample.txt", substr($file_content, 0, 1000));
+            return false;
+        }
+
+        return $file_content;
     }
     
-    // Método 3: Intentar con el endpoint media directamente
-    $media_url = "https://graph.facebook.com/v18.0/{$media_id}/media";
-    $content = descargarMediaConCURL($media_url, $token);
-    
-    if ($content && strlen($content) > 1000) {
-        return $content;
-    }
-    
+    file_put_contents("whatsapp_log.txt", "❌ Ambos métodos fallaron para descargar el archivo\n", FILE_APPEND);
     return false;
 }
 ?>
