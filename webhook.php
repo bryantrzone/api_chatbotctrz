@@ -1198,7 +1198,7 @@ function descargarMediaWhatsApp($media_id) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);    
     $response = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
@@ -1217,8 +1217,11 @@ function descargarMediaWhatsApp($media_id) {
     // 2️⃣ Paso 2: Descargar el archivo binario
     $file_ch = curl_init($download_url);
     curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($file_ch, CURLOPT_FOLLOWLOCATION, true);
+    
     curl_setopt($file_ch, CURLOPT_TIMEOUT, 60);
     curl_setopt($file_ch, CURLOPT_SSL_VERIFYPEER, false);
+    
     $file_content = curl_exec($file_ch);
     $status = curl_getinfo($file_ch, CURLINFO_HTTP_CODE);
     $file_error = curl_error($file_ch);
