@@ -33,7 +33,7 @@ file_put_contents("whatsapp_log.txt", "📩 Mensaje recibido de $phone_number: '
 file_put_contents("whatsapp_log.txt", "🔍 Verificando tipo de mensaje recibido\n", FILE_APPEND);
 
 // Verifica detalladamente la estructura del mensaje para depurar
-if (isset($input['entry']) && 
+if (isset($input['entry']) &&   
     isset($input['entry'][0]['changes']) && 
     isset($input['entry'][0]['changes'][0]['value']) && 
     isset($input['entry'][0]['changes'][0]['value']['messages']) &&

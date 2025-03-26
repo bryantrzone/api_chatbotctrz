@@ -9,7 +9,7 @@ $API_URL = "https://graph.facebook.com/v22.0/$PHONE_NUMBERID/messages";
 
 // Recibir evento
 $input = json_decode(file_get_contents("php://input"), true);
-file_put_contents("log_input.txt", print_r($input, true), FILE_APPEND);
+file_put_contents("whatsapp_log.txt", json_encode($input, JSON_PRETTY_PRINT) . "\n", FILE_APPEND);
 
 // Verificación webhook de Facebook
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['hub_mode'])) {
@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['hub_mode'])) {
 // Procesar mensaje entrante
 if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     $messageData = $input['entry'][0]['changes'][0]['value']['messages'][0];
-    $phone = $messageData['from'];
+    $phone = $input['entry'][0]['changes'][0]['value']['messages'][0]['from'];
     $text = $messageData['text']['body'] ?? '';
 
     // Buscar o crear usuario
