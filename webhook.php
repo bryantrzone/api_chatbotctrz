@@ -1059,99 +1059,80 @@ function enviarMensajeConBotones($telefono, $mensaje, $botones) {
 function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $historial) {
     global $pdo;
 
-    // Al inicio de la función procesarArchivo
     file_put_contents("whatsapp_log.txt", "📄 INICIO PROCESAMIENTO DE ARCHIVO para $phone_number\n", FILE_APPEND);
     file_put_contents("whatsapp_log.txt", "🔢 Estado actual: {$historial['estado']}, Paso: {$historial['registro_paso']}\n", FILE_APPEND);
-    
-    // Directorio para guardar los archivos
+
     $upload_dir = 'uploads/cv/';
-    
-    // Crear el directorio si no existe
     if (!file_exists($upload_dir)) {
         mkdir($upload_dir, 0755, true);
     }
-    
-    // Generar nombre de archivo único
-    $file_extension = pathinfo($file_name, PATHINFO_EXTENSION);
-    if (empty($file_extension)) {
-        // Determinar extensión basada en MIME type si no hay extensión
-        switch ($mime_type) {
-            case 'application/pdf':
-                $file_extension = 'pdf';
-                break;
-            case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-                $file_extension = 'docx';
-                break;
-            case 'application/msword':
-                $file_extension = 'doc';
-                break;
-            case 'image/jpeg':
-            case 'image/jpg':
-                $file_extension = 'jpg';
-                break;
-            case 'image/png':
-                $file_extension = 'png';
-                break;
-            default:
-                $file_extension = 'bin';
-        }
-    }
-    
-    $unique_file_name = uniqid('cv_' . $phone_number . '_') . '.' . $file_extension;
-    $file_path = $upload_dir . $unique_file_name;
-    
-    // Descargar el archivo de WhatsApp
+
     $file_content = descargarMediaWhatsApp($media_id);
-    
-    if ($file_content) {       
-        // Guardar el archivo en el servidor (modo binario)
-        if ($file_content) {
-            // Asegurarte que el directorio existe y tiene permisos adecuados
-            if (!is_dir(dirname($file_path))) {
-                mkdir(dirname($file_path), 0755, true);
-            }
-            
-            // Guardar el archivo en modo binario
-            $bytes_written = file_put_contents($file_path, $file_content);
-            
-            // Verificar que se guardó correctamente
-            if ($bytes_written === false || $bytes_written === 0) {
-                file_put_contents("whatsapp_log.txt", "❌ Error al guardar el archivo: $file_path\n", FILE_APPEND);
-                enviarMensajeTexto($phone_number, "❌ Hubo un problema al guardar tu documento. Por favor, intenta nuevamente.");
-                return;
-            }
-            
-            // Verificar tamaño del archivo
-            $file_size = filesize($file_path);
-            file_put_contents("whatsapp_log.txt", "✅ Archivo guardado, tamaño: $file_size bytes\n", FILE_APPEND);
-            
-            if ($file_size < 100) {
-                file_put_contents("whatsapp_log.txt", "⚠️ Archivo guardado tiene tamaño sospechosamente pequeño\n", FILE_APPEND);
-            }
-            
-            // Establecer permisos adecuados
-            chmod($file_path, 0644);
-            
-            // Continuar con el resto del procesamiento...
+
+    if ($file_content) {
+        // Verificación de formato del archivo
+        $first_bytes = substr($file_content, 0, 9);
+        $is_valid_file = true;
+        $formato = 'desconocido';
+
+        if (strpos($file_content, '%PDF') === 0) {
+            $formato = 'PDF';
+        } elseif (strpos($file_content, "\xFF\xD8\xFF") === 0) {
+            $formato = 'JPEG';
+        } elseif (strpos($file_content, "\x89PNG") === 0) {
+            $formato = 'PNG';
+        } elseif (strpos($file_content, 'PK') === 0 && strpos($file_content, '[Content_Types].xml') !== false) {
+            $formato = 'DOCX';
+        } elseif (substr($first_bytes, 0, 9) === '<!DOCTYPE' || substr($first_bytes, 0, 1) === '{') {
+            $is_valid_file = false;
+            $formato = 'error-html';
         }
-        
-        // Actualizar la base de datos
+
+        file_put_contents("whatsapp_log.txt", "🔍 Verificación de formato - Detectado: $formato\n", FILE_APPEND);
+
+        if (!$is_valid_file) {
+            enviarMensajeTexto($phone_number, "❌ El archivo que enviaste no es válido o no pudimos procesarlo. Por favor, intenta enviarlo nuevamente en formato PDF, JPG o DOCX.");
+            return;
+        }
+
+        // Definir extensión según formato detectado
+        switch ($formato) {
+            case 'PDF':  $ext = 'pdf'; break;
+            case 'JPEG': $ext = 'jpg'; break;
+            case 'PNG':  $ext = 'png'; break;
+            case 'DOCX': $ext = 'docx'; break;
+            default:     $ext = 'bin'; break;
+        }
+
+        $unique_file_name = uniqid("cv_{$phone_number}_") . '.' . $ext;
+        $file_path = $upload_dir . $unique_file_name;
+
+        $bytes_written = file_put_contents($file_path, $file_content);
+
+        if ($bytes_written === false || $bytes_written === 0) {
+            file_put_contents("whatsapp_log.txt", "❌ Error al guardar el archivo: $file_path\n", FILE_APPEND);
+            enviarMensajeTexto($phone_number, "❌ Hubo un problema al guardar tu documento. Por favor, intenta nuevamente.");
+            return;
+        }
+
+        chmod($file_path, 0644);
+        $file_size = filesize($file_path);
+        file_put_contents("whatsapp_log.txt", "✅ Archivo guardado, tamaño: $file_size bytes\n", FILE_APPEND);
+
         try {
-            // Primero, verificar si ya existe una postulación para actualizar
+            // Verifica si ya hay una postulación
             $stmt = $pdo->prepare("SELECT id FROM postulaciones WHERE telefono = ? AND vacante_id = ? ORDER BY id DESC LIMIT 1");
             $stmt->execute([$phone_number, $historial['vacante_id']]);
             $postulacion = $stmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if ($postulacion) {
-                // Actualizar la postulación existente
                 $stmt = $pdo->prepare("UPDATE postulaciones SET cv_path = ? WHERE id = ?");
                 $stmt->execute([$file_path, $postulacion['id']]);
             } else {
-                // Crear una nueva postulación si no existe
                 $stmt = $pdo->prepare("INSERT INTO postulaciones 
                     (telefono, nombre, edad, experiencia, email, vacante_id, cv_path, fecha_postulacion, status) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 'pendiente')");
-                
+
                 $stmt->execute([
                     $phone_number,
                     $historial['nombre'],
@@ -1162,36 +1143,33 @@ function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $hist
                     $file_path
                 ]);
             }
-            
-            // Actualizar el historial del usuario
+
             $historial['cv_path'] = $file_path;
             guardarHistorialUsuario($phone_number, $historial);
-            
-            // Enviar confirmación
+
             $mensaje = "✅ *¡Tu CV ha sido recibido correctamente!*\n\n";
             $mensaje .= "Hemos adjuntado tu documento a tu postulación para *{$historial['vacante_nombre']}*.\n\n";
             $mensaje .= "Nuestro equipo de recursos humanos se pondrá en contacto contigo pronto para continuar con el proceso.";
-            
+
             enviarMensajeTexto($phone_number, $mensaje);
             guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-            
-            // Pequeña pausa
+
             sleep(1);
-            
-            // Ofrecer opciones para continuar
             enviarMensajeConBotones($phone_number, "¿Qué te gustaría hacer ahora?", [
                 ["id" => "ver_otra", "title" => "Ver otras vacantes"],
                 ["id" => "menu_principal", "title" => "Volver al menú"]
             ]);
-            
+
         } catch (PDOException $e) {
             file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error al guardar CV: " . $e->getMessage() . "\n", FILE_APPEND);
             enviarMensajeTexto($phone_number, "❌ Hubo un error al procesar tu documento. Por favor, intenta nuevamente o contacta a soporte.");
         }
+
     } else {
         enviarMensajeTexto($phone_number, "❌ No pudimos descargar tu documento. Por favor, intenta enviarlo nuevamente.");
     }
 }
+
 
 function descargarMediaConCURL($url, $token) {
     // Intentar con librería cURL
@@ -1242,6 +1220,8 @@ function descargarMediaWhatsApp($media_id) {
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+
+    
     
     // Ejecutar la solicitud
     $file_content = curl_exec($ch);
