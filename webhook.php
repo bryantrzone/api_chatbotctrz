@@ -29,13 +29,29 @@ file_put_contents("whatsapp_log.txt", json_encode($input, JSON_PRETTY_PRINT) . "
 file_put_contents("whatsapp_log.txt", "📩 Mensaje recibido de $phone_number: '$message_text', Estado actual: $estado\n", FILE_APPEND);
 
 // **Verificar que el mensaje es válido**
-// if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
-if (isset($input['entry'][0]['changes'][0]['value']['messages'][0]['type'])) {
+// Al inicio del script, añade esto para una mejor depuración
+file_put_contents("whatsapp_log.txt", "🔍 Verificando tipo de mensaje recibido\n", FILE_APPEND);
+
+// Verifica detalladamente la estructura del mensaje para depurar
+if (isset($input['entry']) && 
+    isset($input['entry'][0]['changes']) && 
+    isset($input['entry'][0]['changes'][0]['value']) && 
+    isset($input['entry'][0]['changes'][0]['value']['messages']) &&
+    isset($input['entry'][0]['changes'][0]['value']['messages'][0]['type'])) {
+        
+    // Verifica el historial actual del usuario
+    $historial = cargarHistorialUsuario($phone_number);
+    $estado = $historial['estado'] ?? 'inicio';
+    $paso = $historial['registro_paso'] ?? '';
+    
+    file_put_contents("whatsapp_log.txt", "👤 Estado actual: $estado, Paso: $paso\n", FILE_APPEND);
 
     $message_data = $input['entry'][0]['changes'][0]['value']['messages'][0];
     // $phone_number = corregirFormatoTelefono($message_data['from']); // Número del usuario
     $message_type = $input['entry'][0]['changes'][0]['value']['messages'][0]['type'];
     $phone_number = $input['entry'][0]['changes'][0]['value']['messages'][0]['from'];
+
+    file_put_contents("whatsapp_log.txt", "📱 Mensaje detectado de $phone_number de tipo: $message_type\n", FILE_APPEND);
 
     // Verificar el tipo de mensaje
     if ($message_type === 'document' || $message_type === 'image') {
@@ -169,102 +185,97 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0]['type'])) {
                 enviarMensajeTexto($phone_number, $mensaje);
                 guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
                 break;
-                
-            case 'experiencia':
-                // Procesamos el email
-                if (filter_var($message_text, FILTER_VALIDATE_EMAIL)) {
-                    $historial['registro_paso'] = 'completo';
-                    $historial['email'] = $message_text;
-                    guardarHistorialUsuario($phone_number, $historial);
-                    
-                    // Guardar la postulación en la base de datos
-                    try {
-                        $stmt = $pdo->prepare("INSERT INTO postulaciones 
-                            (telefono, nombre, edad, experiencia, email, vacante_id, fecha_postulacion, status) 
-                            VALUES (?, ?, ?, ?, ?, ?, NOW(), 'pendiente')");
-                        
-                        $stmt->execute([
-                            $phone_number,
-                            $historial['nombre'],
-                            $historial['edad'],
-                            $historial['experiencia'],
-                            $historial['email'],
-                            $historial['vacante_id']
-                        ]);
-                        
-                        // Mensaje de confirmación con datos del candidato
-                        $mensaje = "🎉 *¡Felicidades! Tu postulación ha sido registrada exitosamente*\n\n";
-                        $mensaje .= "📝 *Resumen de tu postulación:*\n";
-                        $mensaje .= "👤 *Nombre:* {$historial['nombre']}\n";
-                        $mensaje .= "📧 *Email:* {$historial['email']}\n";
-                        $mensaje .= "📢 *Vacante:* {$historial['vacante_nombre']}\n";
-                        $mensaje .= "📍 *Sucursal:* {$historial['sucursal_nombre']}\n\n";
-                        $mensaje .= "Nuestro equipo de recursos humanos revisará tu información y se pondrá en contacto contigo en un máximo de 3 días hábiles a través del correo proporcionado.\n\n";
-                        $mensaje .= "Si tienes alguna duda adicional, no dudes en escribirnos.";
-                        
-                        // Enviar confirmación y opciones para continuar
-                        enviarMensajeTexto($phone_number, $mensaje);
-                        guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                        
-                        // Pequeña pausa para no saturar de mensajes
-                        sleep(1);
-                        
-                        // Ofrecer opciones para continuar
-                        enviarMensajeConBotones($phone_number, "¿Qué te gustaría hacer ahora?", [
-                            ["id" => "ver_otra", "title" => "Ver otras vacantes"],
-                            ["id" => "menu_principal", "title" => "Volver al menú"]
-                        ]);
-                        
-                        $mensaje .= "\n\n📄 *¡Un paso más!* Si tienes tu CV listo, puedes enviarlo ahora como archivo PDF, Word o una imagen. Esto ayudará a nuestro equipo a evaluar mejor tu perfil.";
-
-                        // Cambiar el paso a "esperando_cv" en vez de "completo"
-                        $historial['registro_paso'] = 'esperando_cv'; 
-                        guardarHistorialUsuario($phone_number, $historial);    
-                        
-                    } catch (PDOException $e) {
-                        file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error al guardar postulación: " . $e->getMessage() . "\n", FILE_APPEND);
-                        $mensaje = "❌ Lo sentimos, hubo un error al procesar tu postulación. Por favor, intenta nuevamente más tarde o comunícate directamente con nuestra área de recursos humanos.";
-                        enviarMensajeTexto($phone_number, $mensaje);
-                        guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                    }
-                } else {
-                    $mensaje = "⚠️ El correo electrónico ingresado no es válido. Por favor, ingresa un correo electrónico correcto.";
-                    enviarMensajeTexto($phone_number, $mensaje);
-                    guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                }
-                break;
             case 'esperando_cv':
-                // Si el usuario envía texto en vez de un archivo
-                if ($message_type === 'text') {
-                    if (strtolower($message_text) === 'no tengo cv' || 
-                        strtolower($message_text) === 'no' || 
-                        strtolower($message_text) === 'pasar' || 
-                        strtolower($message_text) === 'omitir') {
+                    // Si el usuario envía texto en vez de un archivo
+                    if ($message_type === 'text') {
+                        // Registrar en el log
+                        file_put_contents("whatsapp_log.txt", "🔄 Usuario en estado esperando_cv envió texto: $message_text\n", FILE_APPEND);
                         
-                        // El usuario indica que no tiene CV o quiere omitir este paso
-                        $mensaje = "No hay problema. Hemos registrado tu postulación sin adjuntar CV.\n\n";
-                        $mensaje .= "Si en algún momento deseas enviarlo, simplemente envíanos el archivo y lo adjuntaremos a tu postulación.";
-                        
-                        enviarMensajeTexto($phone_number, $mensaje);
-                        guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
-                        
-                        // Actualizar el estado
-                        $historial['registro_paso'] = 'completo';
+                        // Verificar si quiere omitir el CV
+                        if (strtolower($message_text) === 'no tengo cv' || 
+                            strtolower($message_text) === 'no' || 
+                            strtolower($message_text) === 'pasar' || 
+                            strtolower($message_text) === 'omitir') {
+                            
+                            // El usuario indica que no tiene CV o quiere omitir este paso
+                            $mensaje = "No hay problema. Hemos completado tu postulación sin adjuntar CV.\n\n";
+                            $mensaje .= "Nuestro equipo de recursos humanos revisará tu información y se pondrá en contacto contigo en un máximo de 3 días hábiles a través del correo proporcionado.\n\n";
+                            $mensaje .= "Si en algún momento deseas enviarnos tu CV, simplemente envíanos el archivo y lo adjuntaremos a tu postulación.";
+                            
+                            enviarMensajeTexto($phone_number, $mensaje);
+                            guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                            
+                            // Actualizar el estado
+                            $historial['registro_paso'] = 'completo';
+                            guardarHistorialUsuario($phone_number, $historial);
+                            
+                            // Ofrecer opciones para continuar
+                            enviarMensajeConBotones($phone_number, "¿Qué te gustaría hacer ahora?", [
+                                ["id" => "ver_otra", "title" => "Ver otras vacantes"],
+                                ["id" => "menu_principal", "title" => "Volver al menú"]
+                            ]);
+                        } else {
+                            // Recordar al usuario que esperamos un archivo
+                            $mensaje = "Estamos esperando tu CV en formato PDF, Word o imagen. Si no tienes CV, puedes escribir 'Omitir' para finalizar tu postulación sin adjuntar CV.";
+                            enviarMensajeTexto($phone_number, $mensaje);
+                            guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                        }
+                    }
+                    // Si es un documento o imagen, se maneja en la parte superior del script
+                    break;
+                case 'experiencia':
+                    // Procesamos el email
+                    if (filter_var($message_text, FILTER_VALIDATE_EMAIL)) {
+                        // Guardar el email
+                        $historial['email'] = $message_text;
+                        // Cambiar a paso esperando_cv (¡NO a completo todavía!)
+                        $historial['registro_paso'] = 'esperando_cv';
                         guardarHistorialUsuario($phone_number, $historial);
                         
-                        // Ofrecer opciones para continuar
-                        enviarMensajeConBotones($phone_number, "¿Qué te gustaría hacer ahora?", [
-                            ["id" => "ver_otra", "title" => "Ver otras vacantes"],
-                            ["id" => "menu_principal", "title" => "Volver al menú"]
-                        ]);
+                        // Guardar la postulación en la base de datos
+                        try {
+                            $stmt = $pdo->prepare("INSERT INTO postulaciones 
+                                (telefono, nombre, edad, experiencia, email, vacante_id, fecha_postulacion, status) 
+                                VALUES (?, ?, ?, ?, ?, ?, NOW(), 'pendiente')");
+                            
+                            $stmt->execute([
+                                $phone_number,
+                                $historial['nombre'],
+                                $historial['edad'],
+                                $historial['experiencia'],
+                                $historial['email'],
+                                $historial['vacante_id']
+                            ]);
+                            
+                            // Mensaje de confirmación con datos del candidato
+                            $mensaje = "🎉 *¡Excelente! Tu información básica ha sido registrada*\n\n";
+                            $mensaje .= "📝 *Resumen de tu postulación:*\n";
+                            $mensaje .= "👤 *Nombre:* {$historial['nombre']}\n";
+                            $mensaje .= "📧 *Email:* {$historial['email']}\n";
+                            $mensaje .= "📢 *Vacante:* {$historial['vacante_nombre']}\n";
+                            $mensaje .= "📍 *Sucursal:* {$historial['sucursal_nombre']}\n\n";
+                            
+                            // IMPORTANTE: Añadir la solicitud del CV antes de dar opciones para continuar
+                            $mensaje .= "📄 *¡Un paso más!* Si tienes tu CV listo, puedes enviarlo ahora como archivo PDF, Word o una imagen. Esto ayudará a nuestro equipo a evaluar mejor tu perfil.\n\n";
+                            $mensaje .= "Si no tienes CV disponible, puedes escribir 'Omitir' para finalizar tu postulación sin CV.";
+                            
+                            // Enviar confirmación y solicitud de CV
+                            enviarMensajeTexto($phone_number, $mensaje);
+                            guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                            
+                            // NO envíes botones para continuar todavía - espera el CV
+                            
+                        } catch (PDOException $e) {
+                            file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error al guardar postulación: " . $e->getMessage() . "\n", FILE_APPEND);
+                            $mensaje = "❌ Lo sentimos, hubo un error al procesar tu postulación. Por favor, intenta nuevamente más tarde o comunícate directamente con nuestra área de recursos humanos.";
+                            enviarMensajeTexto($phone_number, $mensaje);
+                            guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
+                        }
                     } else {
-                        // Recordar al usuario que esperamos un archivo
-                        $mensaje = "Estamos esperando tu CV en formato PDF, Word o imagen. Si no tienes CV, puedes escribir 'No tengo CV' para omitir este paso.";
+                        $mensaje = "⚠️ El correo electrónico ingresado no es válido. Por favor, ingresa un correo electrónico correcto.";
                         enviarMensajeTexto($phone_number, $mensaje);
                         guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
                     }
-                }
-                // Si es un documento o imagen, ya se maneja en la parte superior del script
                 break;
             case 'completo':
                 // Si el usuario escribe algo después de completar el registro
@@ -1047,6 +1058,10 @@ function enviarMensajeConBotones($telefono, $mensaje, $botones) {
 // Función para procesar archivos recibidos
 function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $historial) {
     global $pdo;
+
+    // Al inicio de la función procesarArchivo
+    file_put_contents("whatsapp_log.txt", "📄 INICIO PROCESAMIENTO DE ARCHIVO para $phone_number\n", FILE_APPEND);
+    file_put_contents("whatsapp_log.txt", "🔢 Estado actual: {$historial['estado']}, Paso: {$historial['registro_paso']}\n", FILE_APPEND);
     
     // Directorio para guardar los archivos
     $upload_dir = 'uploads/cv/';
