@@ -1169,16 +1169,20 @@ function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $hist
 function descargarMediaWhatsApp($media_id) {
 
     global $config;
+    
+    
     // Define tu token directamente aquí para probar
-    $token = 'EAASBWzT6HkkBO4h2c2Xy22VaXOouqbZCN5EgBfpZAZBOpPZAU0gh7t2Oy3DZCgqZBmErITjA31GZB6joAnFdhCZBncZCiw06ZBZBxq8XBJ5yPKKPf4R0Ut7LPtal1IHW8pLpPx82j7EADLVzTjLMWNOAjYifCHUQwgCaQD8Qih2bhudRL2rZA4yIEUWI59xg1Aw9UworYpdB3xjBR8QZBFTsEzjJ60KUX4mfaCPgVPXkPMFivhqwcThLNqKux'; // Reemplaza con tu token real
+    $token = $config['ACCESS_TOKEN']; // Reemplaza con tu token real
     
     file_put_contents("whatsapp_log.txt", "🔄 Intentando descargar media ID: $media_id\n", FILE_APPEND);
+    file_put_contents("whatsapp_log.txt", "🔑 Usando token: " . substr($token, 0, 10) . "...\n", FILE_APPEND);
     
-    // URL de la API (usa v18.0 en lugar de v22.0)
-    $url = "https://graph.facebook.com/v22.0/{$media_id}";
+    // URL de la API - USAR v18.0 NO v22.0
+    $url = "https://graph.facebook.com/v18.0/{$media_id}";
     $headers = [
         'Authorization: Bearer ' . $token
-    ];
+    ];    
+    
     
     // Registrar para depuración
     file_put_contents("whatsapp_log.txt", "🔑 Usando token: " . substr($token, 0, 10) . "...\n", FILE_APPEND);
@@ -1212,18 +1216,35 @@ function descargarMediaWhatsApp($media_id) {
     }
     
     if (isset($data['url'])) {
+        // Registrar información sobre la URL
+        $file_url = $data['url'];
+        file_put_contents("whatsapp_log.txt", "🔗 URL de archivo recibida: " . $file_url . "\n", FILE_APPEND);
+        
         // Descargar el archivo de la URL
         $file_ch = curl_init();
-        curl_setopt($file_ch, CURLOPT_URL, $data['url']);
+        curl_setopt($file_ch, CURLOPT_URL, $file_url);
         curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($file_ch, CURLOPT_HTTPHEADER, $headers);
+        // No incluir el token para la URL de lookaside.fbsbx.com
+        // curl_setopt($file_ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($file_ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($file_ch, CURLOPT_TIMEOUT, 60);
+        
+        // Para depuración
+        curl_setopt($file_ch, CURLOPT_VERBOSE, true);
+        $verbose = fopen('php://temp', 'w+');
+        curl_setopt($file_ch, CURLOPT_STDERR, $verbose);
         
         $file_content = curl_exec($file_ch);
         $file_error = curl_error($file_ch);
         $file_status = curl_getinfo($file_ch, CURLINFO_HTTP_CODE);
         curl_close($file_ch);
+        
+        // Leer información de depuración
+        rewind($verbose);
+        $verboseLog = stream_get_contents($verbose);
+        file_put_contents("curl_debug.txt", date('Y-m-d H:i:s') . " | Curl verbose log: " . $verboseLog . "\n", FILE_APPEND);
+        
+        file_put_contents("whatsapp_log.txt", "📊 Descarga de archivo: status $file_status, contenido " . strlen($file_content) . " bytes, error: $file_error\n", FILE_APPEND);
         
         if ($file_error) {
             file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error descargando archivo: " . $file_error . "\n", FILE_APPEND);
@@ -1231,7 +1252,20 @@ function descargarMediaWhatsApp($media_id) {
         }
         
         if ($file_status == 200 && !empty($file_content)) {
-            return $file_content;
+            // Verificar que el contenido sea realmente un archivo y no un mensaje de error
+            $is_valid_file = true;
+            
+            // Verificar si parece un mensaje de error HTML/JSON
+            if (substr($file_content, 0, 5) === '<!DOC' || substr($file_content, 0, 1) === '{') {
+                $is_valid_file = false;
+                file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Contenido no válido recibido: " . substr($file_content, 0, 200) . "\n", FILE_APPEND);
+            }
+            
+            if ($is_valid_file) {
+                return $file_content;
+            } else {
+                return false;
+            }
         } else {
             file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error: Código de estado $file_status o contenido vacío\n", FILE_APPEND);
             return false;
