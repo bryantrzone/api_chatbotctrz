@@ -1258,14 +1258,14 @@ function descargarMediaWhatsApp($media_id) {
         if ($file_status == 200 && !empty($file_content)) {
             // Verificar que el contenido sea realmente un archivo y no un mensaje de error
             $is_valid_file = true;
-            
-            // Verificar si parece un mensaje de error HTML/JSON
-            if (substr($file_content, 0, 5) === '<!DOC' || substr($file_content, 0, 1) === '{') {
+
+            $first_bytes = substr($file_content, 0, 10);
+            if (stripos($first_bytes, '<!DOCTYPE') !== false || substr($file_content, 0, 1) === '{') {
                 $is_valid_file = false;
-                file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Contenido no válido recibido: " . substr($file_content, 0, 200) . "\n", FILE_APPEND);
+                file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | ⚠️ Contenido recibido parece no ser un archivo válido\nPrimeros bytes: " . bin2hex($first_bytes) . "\n", FILE_APPEND);
             }
             
-            if ($is_valid_file) {
+            if ($file_status == 200 && !empty($file_content) && $is_valid_file) {
                 return $file_content;
             } else {
                 return false;
