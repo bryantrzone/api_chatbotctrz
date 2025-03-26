@@ -1167,29 +1167,49 @@ function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $hist
 
 // Función para descargar media de WhatsApp
 function descargarMediaWhatsApp($media_id) {
-    // Token de acceso de WhatsApp (deberás usar el tuyo)
-    $token = $config['ACCESS_TOKEN'];
+
+    global $config;
+    // Define tu token directamente aquí para probar
+    $token = $config['VERIFY_TOKEN'];; // Reemplaza con tu token real
     
     file_put_contents("whatsapp_log.txt", "🔄 Intentando descargar media ID: $media_id\n", FILE_APPEND);
     
-    // Primero obtenemos la URL del archivo
-    $url = "https://graph.facebook.com/v22.0/{$media_id}";
+    // URL de la API (usa v18.0 en lugar de v22.0)
+    $url = "https://graph.facebook.com/v18.0/{$media_id}";
     $headers = [
         'Authorization: Bearer ' . $token
     ];
+    
+    // Registrar para depuración
+    file_put_contents("whatsapp_log.txt", "🔑 Usando token: " . substr($token, 0, 10) . "...\n", FILE_APPEND);
+    file_put_contents("whatsapp_log.txt", "🔗 URL solicitada: $url\n", FILE_APPEND);
+    file_put_contents("whatsapp_log.txt", "🔤 Headers: " . json_encode($headers) . "\n", FILE_APPEND);
     
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     
     $response = curl_exec($ch);
+    $curl_error = curl_error($ch);
     $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     
     file_put_contents("whatsapp_log.txt", "📊 Respuesta API WhatsApp: $status - $response\n", FILE_APPEND);
     
+    if ($curl_error) {
+        file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error cURL: " . $curl_error . "\n", FILE_APPEND);
+        return false;
+    }
+    
     $data = json_decode($response, true);
+    
+    if (isset($data['error'])) {
+        file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error de API: " . json_encode($data['error']) . "\n", FILE_APPEND);
+        return false;
+    }
     
     if (isset($data['url'])) {
         // Descargar el archivo de la URL
@@ -1197,14 +1217,28 @@ function descargarMediaWhatsApp($media_id) {
         curl_setopt($file_ch, CURLOPT_URL, $data['url']);
         curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($file_ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($file_ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($file_ch, CURLOPT_TIMEOUT, 60);
         
         $file_content = curl_exec($file_ch);
+        $file_error = curl_error($file_ch);
+        $file_status = curl_getinfo($file_ch, CURLINFO_HTTP_CODE);
         curl_close($file_ch);
         
-        return $file_content;
+        if ($file_error) {
+            file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error descargando archivo: " . $file_error . "\n", FILE_APPEND);
+            return false;
+        }
+        
+        if ($file_status == 200 && !empty($file_content)) {
+            return $file_content;
+        } else {
+            file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error: Código de estado $file_status o contenido vacío\n", FILE_APPEND);
+            return false;
+        }
+    } else {
+        file_put_contents("error_log.txt", date('Y-m-d H:i:s') . " | Error: No se encontró URL en la respuesta\n", FILE_APPEND);
+        return false;
     }
-    
-    return false;
 }
-
 ?>
