@@ -1138,7 +1138,7 @@ function procesarArchivo($phone_number, $media_id, $file_name, $mime_type, $hist
             enviarMensajeTexto($phone_number, $mensaje);
             guardarMensajeChat($phone_number, null, 'respuesta', $mensaje, $historial['estado']);
 
-            sleep(1);
+            sleep(2);
             enviarMensajeConBotones($phone_number, "¿Qué te gustaría hacer ahora?", [
                 ["id" => "ver_otra", "title" => "Ver otras vacantes"],
                 ["id" => "menu_principal", "title" => "Volver al menú"]
@@ -1218,7 +1218,7 @@ function descargarMediaWhatsApp($media_id) {
     $file_ch = curl_init($download_url);
     curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($file_ch, CURLOPT_FOLLOWLOCATION, true);
-    
+
     curl_setopt($file_ch, CURLOPT_TIMEOUT, 60);
     curl_setopt($file_ch, CURLOPT_SSL_VERIFYPEER, false);
     
@@ -1237,11 +1237,9 @@ function descargarMediaWhatsApp($media_id) {
 
     file_put_contents("whatsapp_log.txt", "🔍 Primeros bytes (hex): $first_bytes\n", FILE_APPEND);
 
-    if (
-        stripos($first_clean, '<!DOCTYPE') !== false ||
-        stripos($first_clean, '<html') !== false ||
-        $first_clean[0] === '{'
-    ) {
+    if (substr($file_content, 0, 5) === '<!DOC' || substr($file_content, 0, 1) === '{') { 
+        
+        file_put_contents("whatsapp_log.txt", "⚠️ Contenido sospechoso (primeros 100 caracteres):\n" . substr($file_content, 0, 100) . "\n", FILE_APPEND);
         file_put_contents("whatsapp_log.txt", "⚠️ Archivo no válido detectado (HTML o JSON)\n", FILE_APPEND);
         return false;
     }
