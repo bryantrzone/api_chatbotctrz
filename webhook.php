@@ -1191,14 +1191,17 @@ function descargarMediaWhatsApp($media_id) {
     file_put_contents("whatsapp_log.txt", "\n\n📄 Iniciando descarga de media ID: $media_id\n", FILE_APPEND);
 
     // 1️⃣ Paso 1: Obtener URL del archivo
-    $url = "https://graph.facebook.com/v18.0/{$media_id}";
+    $url = "https://graph.facebook.com/v18.0/{$media_id}?access_token={$token}";
     $headers = ["Authorization: Bearer $token"];
 
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     // curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     
-
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $token
+    ]);
+    
     // Agrega encabezado para simular navegador
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
