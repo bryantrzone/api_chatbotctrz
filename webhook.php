@@ -1196,7 +1196,16 @@ function descargarMediaWhatsApp($media_id) {
 
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    // curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    
+
+    // Agrega encabezado para simular navegador
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+    ]);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true); // Sigue redirecciones
+
+
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);    
     $response = curl_exec($ch);
@@ -1238,7 +1247,7 @@ function descargarMediaWhatsApp($media_id) {
     file_put_contents("whatsapp_log.txt", "🔍 Primeros bytes (hex): $first_bytes\n", FILE_APPEND);
 
     if (substr($file_content, 0, 5) === '<!DOC' || substr($file_content, 0, 1) === '{') { 
-        
+
         file_put_contents("whatsapp_log.txt", "⚠️ Contenido sospechoso (primeros 100 caracteres):\n" . substr($file_content, 0, 100) . "\n", FILE_APPEND);
         file_put_contents("whatsapp_log.txt", "⚠️ Archivo no válido detectado (HTML o JSON)\n", FILE_APPEND);
         return false;
