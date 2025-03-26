@@ -1223,9 +1223,13 @@ function descargarMediaWhatsApp($media_id) {
         // Descargar el archivo de la URL
         $file_ch = curl_init();
         curl_setopt($file_ch, CURLOPT_URL, $file_url);
-        curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);        
         // No incluir el token para la URL de lookaside.fbsbx.com
         // curl_setopt($file_ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($file_ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $token
+        ]);
+        curl_setopt($file_ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($file_ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($file_ch, CURLOPT_TIMEOUT, 60);
         
