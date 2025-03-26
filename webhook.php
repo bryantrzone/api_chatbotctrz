@@ -59,7 +59,7 @@ if (isset($input['entry']) &&
         $estado = $historial['estado'] ?? 'inicio';
         
         // Solo procesamos archivos si estamos en el estado correcto
-        if ($estado === 'registro_datos' && $historial['registro_paso'] === 'completo') {
+        if ($estado === 'registro_datos' && $historial['registro_paso'] === 'esperando_cv') {
             // Es un documento
             if ($message_type === 'document') {
                 $media_id = $input['entry'][0]['changes'][0]['value']['messages'][0]['document']['id'];
