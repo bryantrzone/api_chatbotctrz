@@ -1220,29 +1220,21 @@ function descargarMediaWhatsApp($media_id) {
         $file_url = $data['url'];
         file_put_contents("whatsapp_log.txt", "🔗 URL de archivo recibida: " . $file_url . "\n", FILE_APPEND);
         
-        // Descargar el archivo de la URL
+        
+        // Descargar el archivo desde lookaside.fbsbx.com
         $file_ch = curl_init();
         curl_setopt($file_ch, CURLOPT_URL, $file_url);
-        curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);        
-        // No incluir el token para la URL de lookaside.fbsbx.com
-        // curl_setopt($file_ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($file_ch, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $token
-        ]);
+        curl_setopt($file_ch, CURLOPT_RETURNTRANSFER, true);
+        // No se necesita token para esta URL
         curl_setopt($file_ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($file_ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($file_ch, CURLOPT_TIMEOUT, 60);
-        
-        // Para depuración
-        curl_setopt($file_ch, CURLOPT_VERBOSE, true);
-        $verbose = fopen('php://temp', 'w+');
-        curl_setopt($file_ch, CURLOPT_STDERR, $verbose);
-        
+        curl_setopt($file_ch, CURLOPT_TIMEOUT, 120);
+
         $file_content = curl_exec($file_ch);
         $file_error = curl_error($file_ch);
         $file_status = curl_getinfo($file_ch, CURLINFO_HTTP_CODE);
-        curl_close($file_ch);
-        
+        curl_close($file_ch);       
+                
         // Leer información de depuración
         rewind($verbose);
         $verboseLog = stream_get_contents($verbose);
