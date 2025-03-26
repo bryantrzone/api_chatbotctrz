@@ -1170,12 +1170,12 @@ function descargarMediaWhatsApp($media_id) {
 
     global $config;
     // Define tu token directamente aquí para probar
-    $token = $config['VERIFY_TOKEN'];; // Reemplaza con tu token real
+    $token = 'EAASBWzT6HkkBO4h2c2Xy22VaXOouqbZCN5EgBfpZAZBOpPZAU0gh7t2Oy3DZCgqZBmErITjA31GZB6joAnFdhCZBncZCiw06ZBZBxq8XBJ5yPKKPf4R0Ut7LPtal1IHW8pLpPx82j7EADLVzTjLMWNOAjYifCHUQwgCaQD8Qih2bhudRL2rZA4yIEUWI59xg1Aw9UworYpdB3xjBR8QZBFTsEzjJ60KUX4mfaCPgVPXkPMFivhqwcThLNqKux'; // Reemplaza con tu token real
     
     file_put_contents("whatsapp_log.txt", "🔄 Intentando descargar media ID: $media_id\n", FILE_APPEND);
     
     // URL de la API (usa v18.0 en lugar de v22.0)
-    $url = "https://graph.facebook.com/v18.0/{$media_id}";
+    $url = "https://graph.facebook.com/v22.0/{$media_id}";
     $headers = [
         'Authorization: Bearer ' . $token
     ];
