@@ -5,10 +5,13 @@
  * Este webhook maneja todas las interacciones con WhatsApp Cloud API
  * y procesa las conversaciones según los flujos definidos en la base de datos
  */
-// Añade esto al inicio de webhook_v2.php
 ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/webhook_error.log');
 error_reporting(E_ALL);
+
+// Y en lugares estratégicos
+file_put_contents(__DIR__ . '/debug.log', "Línea alcanzada: " . __LINE__ . "\n", FILE_APPEND);
 
 
 require 'config.php';
