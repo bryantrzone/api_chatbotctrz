@@ -27,6 +27,13 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     $phone = $input['entry'][0]['changes'][0]['value']['messages'][0]['from'];
     $text = $messageData['text']['body'] ?? '';
 
+    if (preg_match('/^521(\d{10})$/', $phone, $matches)) {
+        $phone = '52' . $matches[1];  // Resultado: 52XXXXXXXXXX
+    }
+
+    // Ahora, $phone tendrá el formato correcto
+    file_put_contents("log_input.txt", "Número de teléfono procesado: $phone\n", FILE_APPEND);
+
     // Buscar o crear usuario
     $stmt = $pdo->prepare("SELECT id FROM users WHERE phone = ?");
     $stmt->execute([$phone]);
