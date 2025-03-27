@@ -3,13 +3,16 @@
 require 'config.php'; 
 
 $PHONE_NUMBERID = $config['PHONE_NUMBERID'];
-$VERIFY_TOKEN = $config['VERIFY_TOKEN'];
-$ACCESS_TOKEN = $config['ACCESS_TOKEN'];
-$API_URL = "https://graph.facebook.com/v22.0/$PHONE_NUMBERID/messages";
+$VERIFY_TOKEN   = $config['VERIFY_TOKEN'];
+$ACCESS_TOKEN   = $config['ACCESS_TOKEN'];
+$API_URL        = "https://graph.facebook.com/v18.0/$PHONE_NUMBERID/messages";
 
-// Recibir evento
+function logDebug($mensaje) {
+    file_put_contents("whatsapp_log_dinamico.txt", date('Y-m-d H:i:s') . " | $mensaje\n", FILE_APPEND);
+}
+
 $input = json_decode(file_get_contents("php://input"), true);
-file_put_contents("whatsapp_log.txt", json_encode($input, JSON_PRETTY_PRINT) . "\n", FILE_APPEND);
+logDebug("🔔 Webhook recibido: " . json_encode($input));
 
 // Verificación webhook de Facebook
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['hub_mode'])) {
@@ -21,18 +24,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['hub_mode'])) {
     exit;
 }
 
-// Procesar mensaje entrante
 if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     $messageData = $input['entry'][0]['changes'][0]['value']['messages'][0];
-    $phone = $input['entry'][0]['changes'][0]['value']['messages'][0]['from'];
-    $text = $messageData['text']['body'] ?? '';
+    $phone = $messageData['from'];
 
+    // Eliminar el '1' después del 52 si es número mexicano
     if (preg_match('/^521(\d{10})$/', $phone, $matches)) {
-        $phone = '52' . $matches[1];  // Resultado: 52XXXXXXXXXX
+        $phone = '52' . $matches[1];
     }
 
-    // Ahora, $phone tendrá el formato correcto
-    file_put_contents("log_input.txt", "Número de teléfono procesado: $phone\n", FILE_APPEND);
+    $text = $messageData['text']['body'] ?? '';
+    logDebug("📥 Mensaje de $phone: '$text'");
 
     // Buscar o crear usuario
     $stmt = $pdo->prepare("SELECT id FROM users WHERE phone = ?");
@@ -43,37 +45,35 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         $stmt = $pdo->prepare("INSERT INTO users (phone, name) VALUES (?, '')");
         $stmt->execute([$phone]);
         $userId = $pdo->lastInsertId();
+        logDebug("👤 Nuevo usuario creado con ID $userId");
     } else {
         $userId = $user['id'];
+        logDebug("👤 Usuario existente con ID $userId");
     }
 
-    // Obtener pregunta actual
     $stmt = $pdo->prepare("SELECT * FROM user_flow_history WHERE user_id = ? AND status = 'active'");
     $stmt->execute([$userId]);
     $history = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$history) {
-        // No tiene historial → mostrar pregunta inicial
         $stmt = $pdo->query("SELECT * FROM questions WHERE is_initial = 1 LIMIT 1");
         $initialQuestion = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($initialQuestion) {
             $stmt = $pdo->prepare("INSERT INTO user_flow_history (user_id, current_question_id, status) VALUES (?, ?, 'active')");
             $stmt->execute([$userId, $initialQuestion['id']]);
-
+            logDebug("🚀 Enviando pregunta inicial ID {$initialQuestion['id']} a $phone");
             sendQuestion($phone, $initialQuestion, $pdo, $API_URL, $ACCESS_TOKEN);
         }
-
         exit;
     }
 
     $questionId = $history['current_question_id'];
 
-    // Guardar respuesta del usuario
     $stmt = $pdo->prepare("INSERT INTO user_responses (user_id, question_id, answer_text) VALUES (?, ?, ?)");
     $stmt->execute([$userId, $questionId, $text]);
+    logDebug("💾 Respuesta guardada: Usuario $userId respondió '$text' a la pregunta $questionId");
 
-    // Buscar siguiente paso basado en la respuesta
     $stmt = $pdo->prepare("SELECT * FROM answers WHERE question_id = ?");
     $stmt->execute([$questionId]);
     $options = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -93,6 +93,7 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         $stmt = $pdo->prepare("SELECT name FROM agents WHERE id = ?");
         $stmt->execute([$agentId]);
         $agent = $stmt->fetchColumn();
+        logDebug("🤝 Usuario $userId asignado al agente ID $agentId ($agent)");
 
         sendText($phone, "✅ Te asignaré con $agent, en breve te contactará.", $API_URL, $ACCESS_TOKEN);
         $stmt = $pdo->prepare("UPDATE user_flow_history SET status = 'finished' WHERE user_id = ?");
@@ -107,14 +108,15 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
 
         $stmt = $pdo->prepare("UPDATE user_flow_history SET current_question_id = ? WHERE user_id = ?");
         $stmt->execute([$nextQuestionId, $userId]);
+        logDebug("➡️ Usuario $userId avanza a la pregunta ID $nextQuestionId");
 
         sendQuestion($phone, $nextQuestion, $pdo, $API_URL, $ACCESS_TOKEN);
     } else {
+        logDebug("❌ Respuesta no reconocida: '$text'");
         sendText($phone, "🤔 No entendí tu respuesta. Intenta de nuevo.", $API_URL, $ACCESS_TOKEN);
     }
 }
 
-// Función para enviar texto
 function sendText($to, $message, $API_URL, $ACCESS_TOKEN) {
     $payload = [
         'messaging_product' => 'whatsapp',
@@ -125,14 +127,12 @@ function sendText($to, $message, $API_URL, $ACCESS_TOKEN) {
     sendRequest($payload, $API_URL, $ACCESS_TOKEN);
 }
 
-// Función para enviar pregunta con botones o lista
 function sendQuestion($to, $question, $pdo, $API_URL, $ACCESS_TOKEN) {
     $stmt = $pdo->prepare("SELECT * FROM answers WHERE question_id = ?");
     $stmt->execute([$question['id']]);
     $answers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if ($question['type'] === 'option' && count($answers) <= 3) {
-        // Enviar como botones
         $buttons = array_map(function($ans) {
             return ['type' => 'reply', 'reply' => ['id' => $ans['id'], 'title' => $ans['answer_text']]];
         }, $answers);
@@ -148,7 +148,6 @@ function sendQuestion($to, $question, $pdo, $API_URL, $ACCESS_TOKEN) {
             ]
         ];
     } elseif ($question['type'] === 'list') {
-        // Enviar como lista
         $rows = array_map(function($ans) {
             return ['id' => $ans['id'], 'title' => $ans['answer_text']];
         }, $answers);
@@ -170,7 +169,6 @@ function sendQuestion($to, $question, $pdo, $API_URL, $ACCESS_TOKEN) {
             ]
         ];
     } else {
-        // Enviar solo como texto
         sendText($to, $question['question_text'], $API_URL, $ACCESS_TOKEN);
         return;
     }
@@ -178,7 +176,6 @@ function sendQuestion($to, $question, $pdo, $API_URL, $ACCESS_TOKEN) {
     sendRequest($payload, $API_URL, $ACCESS_TOKEN);
 }
 
-// Enviar petición a la API de WhatsApp
 function sendRequest($payload, $API_URL, $ACCESS_TOKEN) {
     $ch = curl_init($API_URL);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -188,6 +185,6 @@ function sendRequest($payload, $API_URL, $ACCESS_TOKEN) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     $response = curl_exec($ch);
-    file_put_contents("log_respuestas.txt", print_r($response, true), FILE_APPEND);
+    logDebug("📤 Respuesta enviada: $response");
     curl_close($ch);
 }
