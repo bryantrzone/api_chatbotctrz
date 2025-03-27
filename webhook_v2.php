@@ -29,11 +29,11 @@ $version = phpversion();
 file_put_contents(__DIR__ . '/version.log', "PHP Version: $version\n", FILE_APPEND);
 
 require 'config.php';
-require_once __DIR__ . 'classes/Database.php';
-require_once __DIR__ . 'classes/MessageHandler.php';
-require_once __DIR__ . 'classes/Logger.php';
-require_once __DIR__ . 'classes/VariableProcessor.php'; // ¡Este podría estar faltando!
-require_once __DIR__ . 'classes/FlowEngine.php';
+require_once 'classes/Database.php';
+require_once 'classes/MessageHandler.php';
+require_once 'classes/Logger.php';
+require_once 'classes/VariableProcessor.php'; // ¡Este podría estar faltando!
+require_once 'classes/FlowEngine.php';
 
 // Inicializar objetos principales
 $logger = new Logger('whatsapp_log.txt');
