@@ -13,13 +13,27 @@ error_reporting(E_ALL);
 // Y en lugares estratégicos
 file_put_contents(__DIR__ . '/debug.log', "Línea alcanzada: " . __LINE__ . "\n", FILE_APPEND);
 
+// Intenta capturar cualquier error fatal
+register_shutdown_function(function() {
+    $error = error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        file_put_contents(__DIR__ . '/fatal_error.log', 
+            date('Y-m-d H:i:s') . ' - FATAL ERROR: ' . 
+            $error['message'] . ' in ' . $error['file'] . 
+            ' on line ' . $error['line'] . "\n", FILE_APPEND);
+    }
+});
+
+// Añade este código al principio para verificar
+$version = phpversion();
+file_put_contents(__DIR__ . '/version.log', "PHP Version: $version\n", FILE_APPEND);
 
 require 'config.php';
-require_once 'classes/Database.php';
-require_once 'classes/MessageHandler.php';
-require_once 'classes/Logger.php';
-require_once 'classes/VariableProcessor.php'; // ¡Este podría estar faltando!
-require_once 'classes/FlowEngine.php';
+require_once __DIR__ . 'classes/Database.php';
+require_once __DIR__ . 'classes/MessageHandler.php';
+require_once __DIR__ . 'classes/Logger.php';
+require_once __DIR__ . 'classes/VariableProcessor.php'; // ¡Este podría estar faltando!
+require_once __DIR__ . 'classes/FlowEngine.php';
 
 // Inicializar objetos principales
 $logger = new Logger('whatsapp_log.txt');
