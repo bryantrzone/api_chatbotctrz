@@ -11,18 +11,26 @@ function logDebug($mensaje) {
     file_put_contents("whatsapp_log_dinamico.txt", date('Y-m-d H:i:s') . " | $mensaje\n", FILE_APPEND);
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
-logDebug("🔔 Webhook recibido: " . json_encode($input));
+// $input = json_decode(file_get_contents("php://input"), true);
+$input = json_decode(file_get_contents("simulacion_mensaje.json"), true);
+
+// header('Content-Type: application/json; charset=utf-8');
+
+
+// var_dump($input);
+
+
+file_put_contents("whatsapp_log.txt", "🔔 Webhook recibido: " . json_encode($input), FILE_APPEND);
 
 // Verificación webhook de Facebook
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['hub_mode'])) {
-    if ($_GET['hub_verify_token'] === $VERIFY_TOKEN) {
-        echo $_GET['hub_challenge'];
-    } else {
-        echo "Token inválido";
-    }
-    exit;
-}
+// if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['hub_mode'])) {
+//     if ($_GET['hub_verify_token'] === $VERIFY_TOKEN) {
+//         echo $_GET['hub_challenge'];
+//     } else {
+//         echo "Token inválido";
+//     }
+//     exit;
+// }
 
 if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     $messageData = $input['entry'][0]['changes'][0]['value']['messages'][0];
@@ -36,10 +44,14 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
     $text = $messageData['text']['body'] ?? '';
     logDebug("📥 Mensaje de $phone: '$text'");
 
+    // echo $text;
+
     // Buscar o crear usuario
     $stmt = $pdo->prepare("SELECT id FROM users WHERE phone = ?");
     $stmt->execute([$phone]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // var_dump($user);
 
     if (!$user) {
         $stmt = $pdo->prepare("INSERT INTO users (phone, name) VALUES (?, '')");
@@ -51,13 +63,24 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         logDebug("👤 Usuario existente con ID $userId");
     }
 
+
+    // echo $userId;
+
+
     $stmt = $pdo->prepare("SELECT * FROM user_flow_history WHERE user_id = ? AND status = 'active'");
     $stmt->execute([$userId]);
     $history = $stmt->fetch(PDO::FETCH_ASSOC);
 
+    
+
     if (!$history) {
+
+        // var_dump($history);    
+
         $stmt = $pdo->query("SELECT * FROM questions WHERE is_initial = 1 LIMIT 1");
         $initialQuestion = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // var_dump($initialQuestion);
 
         if ($initialQuestion) {
             $stmt = $pdo->prepare("INSERT INTO user_flow_history (user_id, current_question_id, status) VALUES (?, ?, 'active')");
@@ -68,11 +91,17 @@ if (isset($input['entry'][0]['changes'][0]['value']['messages'][0])) {
         exit;
     }
 
+    // var_dump($history);
+
     $questionId = $history['current_question_id'];
+
+    // echo $questionId;
 
     $stmt = $pdo->prepare("INSERT INTO user_responses (user_id, question_id, answer_text) VALUES (?, ?, ?)");
     $stmt->execute([$userId, $questionId, $text]);
     logDebug("💾 Respuesta guardada: Usuario $userId respondió '$text' a la pregunta $questionId");
+
+
 
     $stmt = $pdo->prepare("SELECT * FROM answers WHERE question_id = ?");
     $stmt->execute([$questionId]);

@@ -1,0 +1,39 @@
+{
+    "object": "whatsapp_business_account",
+    "entry": [
+        {
+            "id": "430426560163103",
+            "changes": [
+                {
+                    "value": {
+                        "messaging_product": "whatsapp",
+                        "metadata": {
+                            "display_phone_number": "15551405708",
+                            "phone_number_id": "498027520054701"
+                        },
+                        "contacts": [
+                            {
+                                "profile": {
+                                    "name": "Halconet"
+                                },
+                                "wa_id": "5212223327018"
+                            }
+                        ],
+                        "messages": [
+                            {
+                                "from": "5212223327018",
+                                "id": "wamid.HBgNNTIxMjIyMzMyNzAxOBUCABIYFDNBNDk0MEQ2QzFBMTEyMjE1RDE4AA==",
+                                "timestamp": "1743034435",
+                                "text": {
+                                    "body": "Hola"
+                                },
+                                "type": "text"
+                            }
+                        ]
+                    },
+                    "field": "messages"
+                }
+            ]
+        }
+    ]
+}

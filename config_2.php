@@ -1,8 +1,8 @@
 <?php
 $host = "localhost";
-$dbname = "u106289951_bot_apirh";
-$username = "u106289951_bot_apirh";
-$password = "=rW#TnB4";
+$dbname = "u106289951_bot_api";
+$username = "u106289951_bot_api";
+$password = "5Awc>Iv?vM";
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
