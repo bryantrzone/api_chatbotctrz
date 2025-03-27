@@ -9,7 +9,7 @@ try {
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error en conexión: " . $e->getMessage() . "\n", FILE_APPEND);
-    die("❌ Error en la conexión a la base de datos.");
+    // die("❌ Error en la conexión a la base de datos.");
 }
 
 // Cargar variables de configuración
@@ -22,6 +22,6 @@ try {
     }
 } catch (PDOException $e) {
     file_put_contents("error_log_sql.txt", date('Y-m-d H:i:s') . " | Error al leer whatsapp_config: " . $e->getMessage() . "\n", FILE_APPEND);
-    die("❌ Error al cargar configuración de WhatsApp.");
+    // die("❌ Error al cargar configuración de WhatsApp.");
 }
 ?>

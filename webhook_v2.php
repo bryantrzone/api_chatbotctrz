@@ -5,12 +5,18 @@
  * Este webhook maneja todas las interacciones con WhatsApp Cloud API
  * y procesa las conversaciones según los flujos definidos en la base de datos
  */
+// Añade esto al inicio de webhook_v2.php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 
 require 'config.php';
-require 'classes/FlowEngine.php';
-require 'classes/MessageHandler.php';
-require 'classes/Database.php';
-require 'classes/Logger.php';
+require_once 'classes/Database.php';
+require_once 'classes/MessageHandler.php';
+require_once 'classes/Logger.php';
+require_once 'classes/VariableProcessor.php'; // ¡Este podría estar faltando!
+require_once 'classes/FlowEngine.php';
 
 // Inicializar objetos principales
 $logger = new Logger('whatsapp_log.txt');
