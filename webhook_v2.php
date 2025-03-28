@@ -10,6 +10,12 @@ ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/webhook_error.log');
 error_reporting(E_ALL);
 
+// Donde procesas el mensaje
+$logger->debug("Mensaje recibido: " . json_encode($messageData));
+$logger->debug("Estado de la sesión: " . json_encode($session));
+$logger->debug("Nodo actual: " . json_encode($currentNode));
+$logger->debug("Evaluando transiciones...");
+
 // Y en lugares estratégicos
 file_put_contents(__DIR__ . '/debug.log', "Línea alcanzada: " . __LINE__ . "\n", FILE_APPEND);
 
