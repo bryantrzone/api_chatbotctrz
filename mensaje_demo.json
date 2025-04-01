@@ -1,5 +1,4 @@
-
-📩 Mensaje recibido: {
+{
     "object": "whatsapp_business_account",
     "entry": [
         {
@@ -46,13 +45,3 @@
         }
     ]
 }
-📥 Tipo de mensaje: interactive | Texto recibido: postularme_1
-🔍 Verificando tipo de mensaje recibido de 5212223327018: 'postularme_1'
-📤 Preparando respuesta: {
-    "type": "text",
-    "body": "\u00bfCu\u00e1l es tu nombre completo?"
-}
-🔍 API_URL: https://graph.facebook.com/v22.0/498027520054701/messages, TOKEN disponible: Sí
-✅ Mensaje enviado a 522223327018
-Código HTTP: 200
-Respuesta: {"messaging_product":"whatsapp","contacts":[{"input":"522223327018","wa_id":"5212223327018"}],"messages":[{"id":"wamid.HBgNNTIxMjIyMzMyNzAxOBUCABEYEjQ3MzhFNzg5RkY2OUM2OEIxRAA="}]}
