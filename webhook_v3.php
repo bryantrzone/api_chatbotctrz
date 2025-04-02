@@ -131,11 +131,16 @@ function iniciarConversacion($phone, $pdo) {
 }
 
 function continuarFlujo($phone, $message, $pdo) {
+
+    // var_dump($phone);
+
     $stmt = $pdo->prepare("SELECT nodo_actual, context FROM users_sessions WHERE phone_number = ?");
     $stmt->execute([$phone]);
     $session = $stmt->fetch(PDO::FETCH_ASSOC);
     $nodoActual = $session['nodo_actual'] ?? 'inicio';
     $context = json_decode($session['context'] ?? '{}', true);
+
+    var_dump($session);
 
     // Detectar "postularme_{id}"
     if (strpos($message, 'postularme_') === 0) {
@@ -154,14 +159,30 @@ function continuarFlujo($phone, $message, $pdo) {
         $pregunta = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($pregunta) {
+            // Guardar respuesta
             $stmt = $pdo->prepare("INSERT INTO respuestas_usuarios (phone_number, vacante_id, pregunta_id, campo_respuesta, respuesta) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$phone, $vacanteId, $pregunta['id'], $pregunta['campo_respuesta'], $message]);
-
+        
+            // 🔁 Validar si hay condición para detener el flujo
+            if (!empty($pregunta['condicion'])) {
+                $condicion = json_decode($pregunta['condicion'], true);
+                $valorDetener = $condicion['detener_si'] ?? null;
+                $nodoDestino = $condicion['ir_a_nodo'] ?? null;
+        
+                if ($valorDetener && strtolower($message) === strtolower($valorDetener) && $nodoDestino) {
+                    $pdo->prepare("UPDATE users_sessions SET nodo_actual = ?, context = JSON_SET(context, '$.pregunta_actual', 0) WHERE phone_number = ?")
+                        ->execute([$nodoDestino, $phone]);
+                    return mostrarNodo($nodoDestino, $pdo, $phone);
+                }
+            }
+        
+            // Continuar con la siguiente pregunta
             $pdo->prepare("UPDATE users_sessions SET context = JSON_SET(context, '$.pregunta_actual', ?) WHERE phone_number = ?")
                 ->execute([$preguntaActual + 1, $phone]);
-
+        
             return enviarSiguientePregunta($pdo, $phone);
         }
+        
     }
 
     $stmt = $pdo->prepare("SELECT * FROM flujo_nodos WHERE nombre_nodo = ?");
@@ -170,44 +191,50 @@ function continuarFlujo($phone, $message, $pdo) {
 
     // var_dump($nodo);
 
-    if ($nodo['tipo_fuente'] === 'dinamico') {
-        $siguienteNodo = $nodo['siguiente_por_defecto'];
-
-        if (strpos($message, 'sucursal_') === 0) {
-            $sucursalId = (int) str_replace('sucursal_', '', $message);
-            $pdo->prepare("
-                UPDATE users_sessions 
-                SET context = JSON_SET(IFNULL(context, '{}'), '$.sucursal_id', ?) 
-                WHERE phone_number = ?
-            ")->execute([$sucursalId, $phone]);
-
-
-            // var_dump($siguienteNodo);
-
-            return mostrarNodo($siguienteNodo, $pdo, $phone);
-        }
-
-        if (strpos($message, 'area_') === 0) {
-            $areaId = (int) str_replace('area_', '', $message);
-            $pdo->prepare("UPDATE users_sessions SET context = JSON_SET(IFNULL(context, '{}'), '$.area_id', ?), nodo_actual = ? WHERE phone_number = ?")
-                ->execute([$areaId, $siguienteNodo, $phone]);
-            return mostrarNodo($siguienteNodo, $pdo, $phone);
-        }
-    }
-
-    // Opción seleccionada de lista estática
-    if ($nodo['opciones']) {
-        $opciones = json_decode($nodo['opciones'], true);
-        foreach ($opciones as $op) {
-            if ($message === $op['id']) {
-                $pdo->prepare("UPDATE users_sessions SET nodo_actual = ? WHERE phone_number = ?")
-                    ->execute([$op['next'], $phone]);
-                return mostrarNodo($op['next'], $pdo, $phone);
+    if($nodo){
+        if ($nodo['tipo_fuente'] === 'dinamico') {
+            $siguienteNodo = $nodo['siguiente_por_defecto'];
+    
+            if (strpos($message, 'sucursal_') === 0) {
+                $sucursalId = (int) str_replace('sucursal_', '', $message);
+                $pdo->prepare("
+                    UPDATE users_sessions 
+                    SET context = JSON_SET(IFNULL(context, '{}'), '$.sucursal_id', ?) 
+                    WHERE phone_number = ?
+                ")->execute([$sucursalId, $phone]);
+    
+    
+                // var_dump($siguienteNodo);
+    
+                return mostrarNodo($siguienteNodo, $pdo, $phone);
+            }
+    
+            if (strpos($message, 'area_') === 0) {
+                $areaId = (int) str_replace('area_', '', $message);
+                $pdo->prepare("UPDATE users_sessions SET context = JSON_SET(IFNULL(context, '{}'), '$.area_id', ?), nodo_actual = ? WHERE phone_number = ?")
+                    ->execute([$areaId, $siguienteNodo, $phone]);
+                return mostrarNodo($siguienteNodo, $pdo, $phone);
             }
         }
+    
+        // Opción seleccionada de lista estática
+        if ($nodo['opciones']) {
+            $opciones = json_decode($nodo['opciones'], true);
+            foreach ($opciones as $op) {
+                if ($message === $op['id']) {
+                    $pdo->prepare("UPDATE users_sessions SET nodo_actual = ? WHERE phone_number = ?")
+                        ->execute([$op['next'], $phone]);
+                    return mostrarNodo($op['next'], $pdo, $phone);
+                }
+            }
+        }
+
+        mostrarNodo($nodo['siguiente_por_defecto'], $pdo, $phone);
+    }else{
+        enviarRespuesta(["type" => "text", "body" => "Si necesitas volver al menú principal, solo escribe la palabra *menu*"], $phone);
     }
 
-    mostrarNodo($nodo['siguiente_por_defecto'], $pdo, $phone);
+   
 }
 
 function mostrarNodo($nombreNodo, $pdo, $phone = null) {
@@ -320,17 +347,23 @@ function obtenerOpcionesDinamicas($fuente, $pdo, $phone) {
     }
 
     if ($fuente === 'vacantes') {
+        // Leer sucursal y área desde el contexto
         $stmt = $pdo->prepare("SELECT context FROM users_sessions WHERE phone_number = ?");
         $stmt->execute([$phone]);
         $context = json_decode($stmt->fetchColumn(), true);
         $sucursalId = $context['sucursal_id'] ?? 0;
         $areaId = $context['area_id'] ?? 0;
-
+    
         $stmt = $pdo->prepare("SELECT id, titulo FROM vacantes WHERE sucursal_id = ? AND area_id = ?");
         $stmt->execute([$sucursalId, $areaId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        return array_map(fn($r) => ["id" => "postularme_{$r['id']}", "title" => $r['titulo']], $rows);
+    
+        return array_map(fn($r) => [
+            "id" => "postularme_{$r['id']}",
+            "title" => $r['titulo']
+        ], $rows);
     }
+    
 
     return [];
 }
@@ -409,8 +442,8 @@ function enviarRespuesta($respuesta, $telefono = null) {
     } else {
         file_put_contents("whatsapp_log.txt", "✅ Mensaje enviado a $telefono\nCódigo HTTP: $httpCode\nRespuesta: $response\n", FILE_APPEND);
         
-        header('Content-Type: application/json');
-        echo json_encode($respuesta);
+        // header('Content-Type: application/json');
+        // echo json_encode($respuesta);1
     }
     
     curl_close($ch);

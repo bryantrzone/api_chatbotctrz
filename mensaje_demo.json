@@ -14,7 +14,7 @@
                         "contacts": [
                             {
                                 "profile": {
-                                    "name": "Halconet"
+                                    "name": "Grupo Tractozone"
                                 },
                                 "wa_id": "5212223327018"
                             }
@@ -23,17 +23,17 @@
                             {
                                 "context": {
                                     "from": "15551405708",
-                                    "id": "wamid.HBgNNTIxMjIyMzMyNzAxOBUCABEYEjhDMTZCMzY0NzEwOEVGNUNERQA="
+                                    "id": "wamid.HBgNNTIxMjIyMzU4NTQwMxUCABEYEjU1MzRGMjQwQzZGNzZGRkJBRQA="
                                 },
                                 "from": "5212223327018",
-                                "id": "wamid.HBgNNTIxMjIyMzMyNzAxOBUCABIYIEY5OEQ0MTIyM0NFOTFGQ0IxQTQxM0VBQjY0RDk4RkVDAA==",
-                                "timestamp": "1743524502",
+                                "id": "wamid.HBgNNTIxMjIyMzU4NTQwMxUCABIYIDhGQzQyMDZBQ0VDMjZEMEIwQjU5MDM4MDEzNzEyNjNEAA==",
+                                "timestamp": "1743552414",
                                 "type": "interactive",
                                 "interactive": {
                                     "type": "list_reply",
                                     "list_reply": {
-                                        "id": "postularme_1",
-                                        "title": "Asistente Administrativo"
+                                        "id": "si",
+                                        "title": "S\u00ed"
                                     }
                                 }
                             }

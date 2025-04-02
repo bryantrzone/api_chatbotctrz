@@ -1,0 +1,24 @@
+[02-Apr-2025 00:13:01 UTC] PHP Notice:  Trying to access array offset on value of type bool in C:\wamp64\www\api_chatbotctrz\webhook_v3.php on line 173
+[02-Apr-2025 00:13:01 UTC] PHP Stack trace:
+[02-Apr-2025 00:13:01 UTC] PHP   1. {main}() C:\wamp64\www\api_chatbotctrz\webhook_v3.php:0
+[02-Apr-2025 00:13:01 UTC] PHP   2. continuarFlujo($phone = '522223585403', $message = 'bryan martinez', $pdo = class PDO {  }) C:\wamp64\www\api_chatbotctrz\webhook_v3.php:112
+[02-Apr-2025 00:13:01 UTC] PHP Notice:  Trying to access array offset on value of type bool in C:\wamp64\www\api_chatbotctrz\webhook_v3.php on line 199
+[02-Apr-2025 00:13:01 UTC] PHP Stack trace:
+[02-Apr-2025 00:13:01 UTC] PHP   1. {main}() C:\wamp64\www\api_chatbotctrz\webhook_v3.php:0
+[02-Apr-2025 00:13:01 UTC] PHP   2. continuarFlujo($phone = '522223585403', $message = 'bryan martinez', $pdo = class PDO {  }) C:\wamp64\www\api_chatbotctrz\webhook_v3.php:112
+[02-Apr-2025 00:13:01 UTC] PHP Notice:  Trying to access array offset on value of type bool in C:\wamp64\www\api_chatbotctrz\webhook_v3.php on line 210
+[02-Apr-2025 00:13:01 UTC] PHP Stack trace:
+[02-Apr-2025 00:13:01 UTC] PHP   1. {main}() C:\wamp64\www\api_chatbotctrz\webhook_v3.php:0
+[02-Apr-2025 00:13:01 UTC] PHP   2. continuarFlujo($phone = '522223585403', $message = 'bryan martinez', $pdo = class PDO {  }) C:\wamp64\www\api_chatbotctrz\webhook_v3.php:112
+[02-Apr-2025 00:22:27 UTC] PHP Notice:  Trying to access array offset on value of type bool in C:\wamp64\www\api_chatbotctrz\webhook_v3.php on line 178
+[02-Apr-2025 00:22:27 UTC] PHP Stack trace:
+[02-Apr-2025 00:22:27 UTC] PHP   1. {main}() C:\wamp64\www\api_chatbotctrz\webhook_v3.php:0
+[02-Apr-2025 00:22:27 UTC] PHP   2. continuarFlujo($phone = '522223327018', $message = 'si', $pdo = class PDO {  }) C:\wamp64\www\api_chatbotctrz\webhook_v3.php:112
+[02-Apr-2025 00:22:27 UTC] PHP Notice:  Trying to access array offset on value of type bool in C:\wamp64\www\api_chatbotctrz\webhook_v3.php on line 204
+[02-Apr-2025 00:22:27 UTC] PHP Stack trace:
+[02-Apr-2025 00:22:27 UTC] PHP   1. {main}() C:\wamp64\www\api_chatbotctrz\webhook_v3.php:0
+[02-Apr-2025 00:22:27 UTC] PHP   2. continuarFlujo($phone = '522223327018', $message = 'si', $pdo = class PDO {  }) C:\wamp64\www\api_chatbotctrz\webhook_v3.php:112
+[02-Apr-2025 00:22:27 UTC] PHP Notice:  Trying to access array offset on value of type bool in C:\wamp64\www\api_chatbotctrz\webhook_v3.php on line 215
+[02-Apr-2025 00:22:27 UTC] PHP Stack trace:
+[02-Apr-2025 00:22:27 UTC] PHP   1. {main}() C:\wamp64\www\api_chatbotctrz\webhook_v3.php:0
+[02-Apr-2025 00:22:27 UTC] PHP   2. continuarFlujo($phone = '522223327018', $message = 'si', $pdo = class PDO {  }) C:\wamp64\www\api_chatbotctrz\webhook_v3.php:112
