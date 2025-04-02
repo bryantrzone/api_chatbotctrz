@@ -9,10 +9,10 @@ error_reporting(E_ALL);
 // webhook.php
 require_once "db.php";
 
-// $data = json_decode(file_get_contents("php://input"), true);
+$data = json_decode(file_get_contents("php://input"), true);
 
 // header('Content-Type: application/json; charset=utf-8');
-$data = json_decode(file_get_contents("mensaje_demo.json"), true);
+// $data = json_decode(file_get_contents("mensaje_demo.json"), true);
 
 $PHONE_NUMBERID = $config['PHONE_NUMBERID'];
 $VERIFY_TOKEN   = $config['VERIFY_TOKEN'];
