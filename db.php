@@ -1,8 +1,8 @@
 <?php
 $host = "localhost";
-$dbname = "whatsapp_bot";
-$username = "root";
-$password = "";
+$dbname = "u106289951_gtrz_bot";
+$username = "u106289951_gtrz_bot";
+$password = "Ya?Mi3~Z";
 
 // $host = "localhost";
 // $dbname = "u106289951_ctrzbot";
