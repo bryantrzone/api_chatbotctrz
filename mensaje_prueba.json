@@ -1,0 +1,41 @@
+[
+    {
+        "object": "whatsapp_business_account",
+        "entry": [
+            {
+                "id": "1018910770305622",
+                "changes": [
+                    {
+                        "value": {
+                            "messaging_product": "whatsapp",
+                            "metadata": {
+                                "display_phone_number": "5212223585403",
+                                "phone_number_id": "643108555551594"
+                            },
+                            "contacts": [
+                                {
+                                    "profile": {
+                                        "name": "Angel Hern\u00e1ndez \ud83e\udd85"
+                                    },
+                                    "wa_id": "5212711794450"
+                                }
+                            ],
+                            "messages": [
+                                {
+                                    "from": "5212711794450",
+                                    "id": "wamid.HBgNNTIxMjcxMTc5NDQ1MBUCABIYIEE3MjAzMDdENzgxRUM0Q0VGQkVDREI4NDg5RDgzN0MxAA==",
+                                    "timestamp": "1745357125",
+                                    "text": {
+                                        "body": "Vi una vacante en internet para C\u00f3rdoba Veracruz"
+                                    },
+                                    "type": "text"
+                                }
+                            ]
+                        },
+                        "field": "messages"
+                    }
+                ]
+            }
+        ]
+    }
+]

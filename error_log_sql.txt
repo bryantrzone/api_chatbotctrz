@@ -1,0 +1,3 @@
+2025-04-23 00:26:08 | Error al leer whatsapp_config: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u106289951_gtrz_bot.whatsapp_config' doesn't exist
+2025-04-23 00:26:23 | Error al leer whatsapp_config: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u106289951_gtrz_bot.whatsapp_config' doesn't exist
+2025-04-23 00:26:36 | Error al leer whatsapp_config: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'u106289951_gtrz_bot.whatsapp_config' doesn't exist

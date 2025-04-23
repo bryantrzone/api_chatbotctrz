@@ -5,13 +5,15 @@ ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/webhook_error.log');
 error_reporting(E_ALL);
 
-// Incluir configuración de base de datos
+// Incluir configuración de base de datos y mapa de ladas
 require_once "db.php";
+require_once "mexico_ladas.php";
 
 // Obtener datos de la solicitud entrante
 $data = json_decode(file_get_contents("php://input"), true);
+// $data = json_decode("mensaje_prueba.json", true);
 
-// Configuración de WhatsApp Business API
+// Configuración de WhatsApp Business APIS
 $PHONE_NUMBERID = $config['PHONE_NUMBERID'];
 $VERIFY_TOKEN   = $config['VERIFY_TOKEN'];
 $ACCESS_TOKEN   = $config['ACCESS_TOKEN'];
@@ -43,6 +45,9 @@ if (isset($data['entry'][0]['changes'][0]['value']['messages'][0])) {
     $phone = $messageData['from'];
     $messageType = $messageData['type'];
     $timestamp = $messageData['timestamp'] ?? time();
+    
+    // Identificar ubicación basada en el número telefónico
+    $ubicacionInfo = identificarUbicacionPorTelefono($phone);
     
     // Extraer el mensaje según su tipo
     switch ($messageType) {
@@ -127,17 +132,17 @@ if (isset($data['entry'][0]['changes'][0]['value']['messages'][0])) {
     // Guardar mensaje recibido en la base de datos
     guardarMensaje($pdo, $phone, $message, $messageType, 'recibido', $timestamp, $userName, $mediaData);
     
-    // // Respuesta simple (opcional)
-    // $respuesta = [
-    //     "type" => "text",
-    //     "body" => "Mensaje recibido. Gracias."
-    // ];
+    // Respuesta simple (opcional)
+    $respuesta = [
+        "type" => "text",
+        "body" => "Mensaje recibido. Gracias."
+    ];
     
-    // // Enviar respuesta
-    // $responseData = enviarRespuesta($respuesta, $phone);
+    // Enviar respuesta
+    $responseData = enviarRespuesta($respuesta, $phone);
     
     // Guardar respuesta enviada
-    // guardarMensaje($pdo, $phone, $respuesta['body'], 'text', 'enviado', time(), $userName);
+    guardarMensaje($pdo, $phone, $respuesta['body'], 'text', 'enviado', time(), $userName);
     
 } else {
     file_put_contents("whatsapp_log.txt", "⚠️ No se recibió mensaje válido en formato esperado.\n", FILE_APPEND);
@@ -154,21 +159,64 @@ function guardarMensaje($pdo, $phone, $message, $type, $direction, $timestamp, $
         // Si el usuario no existe, insertarlo
         if (!empty($userName)) {
             $userStmt = $pdo->prepare("
-                INSERT INTO users (phone_number, name, last_activity) 
-                VALUES (?, ?, FROM_UNIXTIME(?))
+                INSERT INTO users (
+                    phone_number, 
+                    name, 
+                    lada, 
+                    estado, 
+                    ciudad, 
+                    region, 
+                    last_activity
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, FROM_UNIXTIME(?)
+                )
                 ON DUPLICATE KEY UPDATE 
                     name = IF(name = '' OR name IS NULL, VALUES(name), name),
+                    lada = VALUES(lada),
+                    estado = VALUES(estado),
+                    ciudad = VALUES(ciudad),
+                    region = VALUES(region),
                     last_activity = FROM_UNIXTIME(?)
             ");
-            $userStmt->execute([$phone, $userName, $timestamp, $timestamp]);
+            $userStmt->execute([
+                $phone, 
+                $userName, 
+                $ubicacionInfo['lada'],
+                $ubicacionInfo['estado'],
+                $ubicacionInfo['ciudad'] ?? 'Desconocida',
+                $ubicacionInfo['region'] ?? 'Desconocida',
+                $timestamp, 
+                $timestamp
+            ]);
         } else {
-            // Actualizar solo la actividad
+            // Actualizar solo la actividad y datos de ubicación
             $userStmt = $pdo->prepare("
-                INSERT INTO users (phone_number, last_activity) 
-                VALUES (?, FROM_UNIXTIME(?))
-                ON DUPLICATE KEY UPDATE last_activity = FROM_UNIXTIME(?)
+                INSERT INTO users (
+                    phone_number, 
+                    lada, 
+                    estado, 
+                    ciudad, 
+                    region, 
+                    last_activity
+                ) VALUES (
+                    ?, ?, ?, ?, ?, FROM_UNIXTIME(?)
+                )
+                ON DUPLICATE KEY UPDATE 
+                    lada = VALUES(lada),
+                    estado = VALUES(estado),
+                    ciudad = VALUES(ciudad),
+                    region = VALUES(region),
+                    last_activity = FROM_UNIXTIME(?)
             ");
-            $userStmt->execute([$phone, $timestamp, $timestamp]);
+            $userStmt->execute([
+                $phone, 
+                $ubicacionInfo['lada'],
+                $ubicacionInfo['estado'],
+                $ubicacionInfo['ciudad'] ?? 'Desconocida',
+                $ubicacionInfo['region'] ?? 'Desconocida',
+                $timestamp, 
+                $timestamp
+            ]);
         }
         
         // Insertar el mensaje con información multimedia si existe
