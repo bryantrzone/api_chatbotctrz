@@ -132,17 +132,17 @@ if (isset($data['entry'][0]['changes'][0]['value']['messages'][0])) {
     // Guardar mensaje recibido en la base de datos
     guardarMensaje($pdo, $phone, $message, $messageType, 'recibido', $timestamp, $userName, $mediaData);
     
-    // Respuesta simple (opcional)
-    $respuesta = [
-        "type" => "text",
-        "body" => "Mensaje recibido. Gracias."
-    ];
+    // // Respuesta simple (opcional)
+    // $respuesta = [
+    //     "type" => "text",
+    //     "body" => "Mensaje recibido. Gracias."
+    // ];
     
-    // Enviar respuesta
-    $responseData = enviarRespuesta($respuesta, $phone);
+    // // Enviar respuesta
+    // $responseData = enviarRespuesta($respuesta, $phone);
     
-    // Guardar respuesta enviada
-    guardarMensaje($pdo, $phone, $respuesta['body'], 'text', 'enviado', time(), $userName);
+    // // Guardar respuesta enviada
+    // guardarMensaje($pdo, $phone, $respuesta['body'], 'text', 'enviado', time(), $userName);
     
 } else {
     file_put_contents("whatsapp_log.txt", "⚠️ No se recibió mensaje válido en formato esperado.\n", FILE_APPEND);
