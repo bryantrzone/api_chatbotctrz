@@ -1,0 +1,486 @@
+
+2025-04-23 19:28:59 - Envío a 522223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "522223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_consultar_estatus",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "265"
+                    }
+                ]
+            },
+            {
+                "type": "button",
+                "sub_type": "quick_reply",
+                "index": "0",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "Confirmar"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (400): {"error":{"message":"Unsupported post request. Object with ID '498027520054701' does not exist, cannot be loaded due to missing permissions, or does not support this operation. Please read the Graph API documentation at https:\/\/developers.facebook.com\/docs\/graph-api","type":"GraphMethodException","code":100,"error_subcode":33,"fbtrace_id":"AoglH3Tz68is6DJ5GHuYXwn"}}
+
+2025-04-23 19:33:16 - Envío a 522223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "522223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_consultar_estatus",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "265"
+                    }
+                ]
+            },
+            {
+                "type": "button",
+                "sub_type": "quick_reply",
+                "index": "0",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "Confirmar"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (400): {"error":{"message":"(#100) Invalid parameter","type":"OAuthException","code":100,"error_data":{"messaging_product":"whatsapp","details":"buttons: Button at index 0 must be of type Url"},"fbtrace_id":"ADaaCFqkFb4P80_oeVU3b_M"}}
+
+2025-04-23 19:33:59 - Envío a 522223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "522223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_consultar_estatus",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "265"
+                    }
+                ]
+            },
+            {
+                "type": "button",
+                "sub_type": "url",
+                "index": "0",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "https:\/\/ctrz.halconet.com.mx"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (200): {"messaging_product":"whatsapp","contacts":[{"input":"522223637840","wa_id":"5212223637840"}],"messages":[{"id":"wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEkE5MkFGRjA0QkQ4MjcwQ0U0NQA=","message_status":"accepted"}]}
+
+2025-04-23 19:34:35 - Envío a 522223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "522223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_consultar_estatus",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "265"
+                    }
+                ]
+            },
+            {
+                "type": "button",
+                "sub_type": "url",
+                "index": "0",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "Folioweb=234234"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (200): {"messaging_product":"whatsapp","contacts":[{"input":"522223637840","wa_id":"5212223637840"}],"messages":[{"id":"wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEjU5ODdEMUYxMzIzNzlDN0Q1NgA=","message_status":"accepted"}]}
+
+2025-04-23 19:37:40 - Envío a 522223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "522223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_consultar_estatus",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "265"
+                    }
+                ]
+            },
+            {
+                "type": "button",
+                "sub_type": "url",
+                "index": "0",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "?Folioweb=234234"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (200): {"messaging_product":"whatsapp","contacts":[{"input":"522223637840","wa_id":"5212223637840"}],"messages":[{"id":"wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEjU2QjVENjkxQzJGRUQzMkVEQgA=","message_status":"accepted"}]}
+
+2025-04-23 19:38:43 - Envío a 522223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "522223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_consultar_estatus",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "265"
+                    }
+                ]
+            },
+            {
+                "type": "button",
+                "sub_type": "url",
+                "index": "0",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "?Folioweb=234234&User_id=2565"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (200): {"messaging_product":"whatsapp","contacts":[{"input":"522223637840","wa_id":"5212223637840"}],"messages":[{"id":"wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEjA1MUJERDE2MkJEQkMxMjk2MQA=","message_status":"accepted"}]}
+
+2025-04-23 19:41:31 - Envío a 522223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "522223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_estatus",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "TERMINADO \u2705"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Puebla-CEDIS"
+                    }
+                ]
+            },
+            {
+                "type": "button",
+                "sub_type": "url",
+                "index": "0",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "?Folioweb=234234&User_id=2565"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (400): {"error":{"message":"(#132000) Number of parameters does not match the expected number of params","type":"OAuthException","code":132000,"error_data":{"messaging_product":"whatsapp","details":"header: number of localizable_params (0) does not match the expected number of params (1)"},"fbtrace_id":"AHU_MjqVJNIkYXB9bjPdSS1"}}
+
+2025-04-23 19:41:44 - Envío a 522223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "522223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_estatus",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "TERMINADO \u2705"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Puebla-CEDIS"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (400): {"error":{"message":"(#132000) Number of parameters does not match the expected number of params","type":"OAuthException","code":132000,"error_data":{"messaging_product":"whatsapp","details":"header: number of localizable_params (0) does not match the expected number of params (1)"},"fbtrace_id":"Acrlz5Tmr6ThFL9Rczbl3ey"}}
+
+2025-04-23 19:43:57 - Envío a 522223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "522223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_estatus",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "header",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "TERMINADO \u2705"
+                    }
+                ]
+            },
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "TERMINADO \u2705"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Puebla-CEDIS"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (200): {"messaging_product":"whatsapp","contacts":[{"input":"522223637840","wa_id":"5212223637840"}],"messages":[{"id":"wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEkU5NTVDQTY4NTg2MDVGQTY0OAA=","message_status":"accepted"}]}
+
+2025-04-23 19:53:43 - Envío a 522223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "522223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_estatus",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "header",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "TERMINADO \u2705"
+                    }
+                ]
+            },
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "TERMINADO \u2705"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Puebla-CEDIS"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (200): {"messaging_product":"whatsapp","contacts":[{"input":"522223637840","wa_id":"5212223637840"}],"messages":[{"id":"wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEkY3RUNDMTUxMzFCNjMxN0MwOQA=","message_status":"accepted"}]}
+
+2025-04-23 19:55:18 - Envío a 522223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "522223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_estatus",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "header",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "TERMINADO \u2705"
+                    }
+                ]
+            },
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "TERMINADO \u2705"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Puebla-CEDIS"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (200): {"messaging_product":"whatsapp","contacts":[{"input":"522223637840","wa_id":"5212223637840"}],"messages":[{"id":"wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEjlGODFBRTg3MUE4RTkzQjBDNAA=","message_status":"accepted"}]}
+
+2025-04-23 20:22:29 - Envío a 522223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "522223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_estatus",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "header",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "TERMINADO \u2705"
+                    }
+                ]
+            },
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "TERMINADO \u2705"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Puebla-CEDIS"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (200): {"messaging_product":"whatsapp","contacts":[{"input":"522223637840","wa_id":"5212223637840"}],"messages":[{"id":"wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEjI2NTBCRThBRTM1MUI3OERFNAA=","message_status":"accepted"}]}
+WAMID: wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEjI2NTBCRThBRTM1MUI3OERFNAA=

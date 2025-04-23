@@ -37,12 +37,30 @@ $message = '';
 $messageType = '';
 $userName = '';
 $timestamp = '';
+$wamid = '';
+$contextWamid = '';
+$reactionEmoji = '';
+$reactionMessageId = '';
 
 if (isset($data['entry'][0]['changes'][0]['value']['messages'][0])) {
     $messageData = $data['entry'][0]['changes'][0]['value']['messages'][0];
     $phone = $messageData['from'];
+    
+    // Modificar el formato del teléfono (quitar el "1" después del "52")
+    if (substr($phone, 0, 3) === "521") {
+        $phone = "52" . substr($phone, 3);
+    }
+    
     $messageType = $messageData['type'];
     $timestamp = $messageData['timestamp'] ?? time();
+    
+    // Obtener el wamid del mensaje
+    $wamid = $messageData['id'] ?? '';
+    
+    // Obtener wamid del contexto si existe
+    if (isset($messageData['context']) && isset($messageData['context']['id'])) {
+        $contextWamid = $messageData['context']['id'];
+    }
     
     // Extraer el mensaje según su tipo
     switch ($messageType) {
@@ -94,6 +112,17 @@ if (isset($data['entry'][0]['changes'][0]['value']['messages'][0])) {
             $message = 'Sticker recibido';
             $mediaId = $messageData['sticker']['id'] ?? '';
             break;
+        case 'reaction':
+            $emoji = $messageData['reaction']['emoji'] ?? '';
+            $reactedToMsgId = $messageData['reaction']['message_id'] ?? '';
+            $message = "Reacción: $emoji";
+            
+            // Almacenar información adicional de la reacción
+            $mediaData['additional_info'] = json_encode([
+                'emoji' => $emoji,
+                'reacted_to_message_id' => $reactedToMsgId
+            ]);
+            break;
         case 'contacts':
             $message = 'Contacto(s) recibido(s)';
             // Podrías extraer más detalles si es necesario
@@ -125,7 +154,7 @@ if (isset($data['entry'][0]['changes'][0]['value']['messages'][0])) {
     }
     
     // Guardar mensaje recibido en la base de datos
-    guardarMensaje($pdo, $phone, $message, $messageType, 'recibido', $timestamp, $userName, $mediaData);
+    guardarMensaje($pdo, $phone, $message, $messageType, 'recibido', $timestamp, $userName, $mediaData, $wamid, $contextWamid);
     
     // // Respuesta simple (opcional)
     // $respuesta = [
@@ -149,7 +178,7 @@ if (isset($data['entry'][0]['changes'][0]['value']['messages'][0])) {
 /**
  * Guarda el mensaje en la base de datos
  */
-function guardarMensaje($pdo, $phone, $message, $type, $direction, $timestamp, $userName = '', $mediaData = []) {
+function guardarMensaje($pdo, $phone, $message, $type, $direction, $timestamp, $userName = '', $mediaData = [], $wamid = '', $contextWamid = '') {
     try {
         // Si el usuario no existe, insertarlo
         if (!empty($userName)) {
@@ -185,9 +214,11 @@ function guardarMensaje($pdo, $phone, $message, $type, $direction, $timestamp, $
                 timestamp,
                 media_url,
                 media_id,
-                additional_info
+                additional_info,
+                wamid,
+                context_wamid
             ) VALUES (
-                ?, ?, ?, ?, FROM_UNIXTIME(?), ?, ?, ?
+                ?, ?, ?, ?, FROM_UNIXTIME(?), ?, ?, ?, ?, ?
             )
         ");
         $msgStmt->execute([
@@ -198,7 +229,9 @@ function guardarMensaje($pdo, $phone, $message, $type, $direction, $timestamp, $
             $timestamp, 
             $mediaUrl, 
             $mediaId, 
-            $additionalInfo
+            $additionalInfo,
+            $wamid,
+            $contextWamid
         ]);
         
         file_put_contents("whatsapp_log.txt", "✅ Mensaje guardado en la BD: $phone - $message\n", FILE_APPEND);
