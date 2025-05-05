@@ -7,7 +7,7 @@ error_reporting(E_ALL);
 
 
 // webhook.php
-require_once "db.php";
+require_once "db_bot.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 
