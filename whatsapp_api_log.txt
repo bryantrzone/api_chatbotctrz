@@ -1,0 +1,88 @@
+
+2025-09-05 20:53:36 - Envío a 5212223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "5212223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_estatus_global",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "header",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "Aprobado"
+                    }
+                ]
+            },
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "420"
+                    },
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Aprobado"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (200): {"messaging_product":"whatsapp","contacts":[{"input":"5212223637840","wa_id":"5212223637840"}],"messages":[{"id":"wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEjREMUQ3M0I3NjhDODA4OTMyOAA=","message_status":"accepted"}]}
+WAMID: wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEjREMUQ3M0I3NjhDODA4OTMyOAA=
+❌ Error al guardar mensaje en BD: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'status' in 'INSERT INTO'
+
+2025-09-08 20:56:58 - Envío a 5212223637840:
+Payload: {
+    "messaging_product": "whatsapp",
+    "to": "5212223637840",
+    "type": "template",
+    "template": {
+        "name": "mantenimiento_estatus_global",
+        "language": {
+            "code": "es_MX"
+        },
+        "components": [
+            {
+                "type": "header",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "Aprobado"
+                    }
+                ]
+            },
+            {
+                "type": "body",
+                "parameters": [
+                    {
+                        "type": "text",
+                        "text": "420"
+                    },
+                    {
+                        "type": "text",
+                        "text": "UAH-273-A"
+                    },
+                    {
+                        "type": "text",
+                        "text": "Aprobado"
+                    }
+                ]
+            }
+        ]
+    }
+}
+Respuesta (200): {"messaging_product":"whatsapp","contacts":[{"input":"5212223637840","wa_id":"5212223637840"}],"messages":[{"id":"wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEkU0OTcxNkVCQkIyRURFOENCMAA=","message_status":"accepted"}]}
+WAMID: wamid.HBgNNTIxMjIyMzYzNzg0MBUCABEYEkU0OTcxNkVCQkIyRURFOENCMAA=
+❌ Error al guardar mensaje en BD: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'status' in 'INSERT INTO'

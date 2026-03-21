@@ -1,13 +1,13 @@
 <?php
-$host = "localhost";
-$dbname = "whatsapp_bot";
-$username = "root";
-$password = "";
-
 // $host = "localhost";
-// $dbname = "u106289951_ctrzbot";
-// $username = "u106289951_ctrzbot";
-// $password = "C11JY&5x";
+// $dbname = "whatsapp_bot";
+// $username = "root";
+// $password = "";
+
+$host = "193.203.166.99";
+$dbname = "u106289951_gtrz_bot";
+$username = "u106289951_gtrz_bot";
+$password = "Ya?Mi3~Z";
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
